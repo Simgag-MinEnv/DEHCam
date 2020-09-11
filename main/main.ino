@@ -1,8 +1,8 @@
 //./build-local.sh main
-//particle flash --usb target/1.5.2/boron/BoronCamDEH.bin
-//particle flash --usb target/1.4.4/boron/BoronCamDEH.bin
-//particle flash 44515 target/1.5.2/boron/BoronCamDEH.bin
-//./sync-flash.sh 44515 target/1.5.2/boron/BoronCamDEH.bin
+//particle flash --usb target/1.5.2/boron/DEHCam.bin
+//particle flash --usb target/1.4.4/boron/DEHCam.bin
+//particle flash 44515 target/1.5.2/boron/DEHCam.bin
+//./sync-flash.sh 44515 target/1.5.2/boron/DEHCam.bin
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -45,7 +45,7 @@ bool offlineMode = false;
 bool cloudOutage = false;
 int Batt_low_SP = 330;
 
-#define VERSION_SLUG "V1.42" //2020/09/10
+#define VERSION_SLUG "V1.431" //2020/09/11
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -1127,9 +1127,10 @@ void printNclearSDlogBuffer() {
 * Fonction concierge pour éviter le trop plein de données
 *
 */
-void cleanSD() {
+int cleanSD(String Dummy) {
   int FolderRmvd = 0;
   int FileRmvd = 0;
+  Particle.publish("status", "Cleaning old photos on SD...");
   log("clSD", 4);
   File root = SD.open(stationName + "/");
   File entry = root.openNextFile();
@@ -1172,6 +1173,7 @@ void cleanSD() {
     entry =  root.openNextFile();
   }
   root.close();
+  Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));
   log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
 
 
@@ -1180,6 +1182,7 @@ void cleanSD() {
   
   FolderRmvd = 0;
   FileRmvd = 0;
+  Particle.publish("status", "Cleaning old logs on SD...");
   log("clL", 4);
   root = SD.open("LOGS/");
   entry = root.openNextFile();
@@ -1196,7 +1199,9 @@ void cleanSD() {
     entry =  root.openNextFile();
   }
   root.close();
+  Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));  
   log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
+  return 1;
 }
 
 /* 
@@ -1213,8 +1218,7 @@ void setup() {
   pmic.enableBuck();
   Particle.process();
   Particle.function("Grab Pic", grabPic);
-  Particle.variable("Station Name", stationName);
-  Particle.variable("IPAdress", PublicIP);
+  Particle.function("CleanSD", cleanSD);
   Particle.subscribe("particle/device/ip", handler, MY_DEVICES);
   Particle.subscribe("particle/device/name", handler);  
   Particle.publishVitals();
@@ -1312,7 +1316,7 @@ void loop() {
 
   if(result.wokenUpByPin()) {
   secstoTimeout = timeout;
-  RGB.mirrorTo( statusLed, statusLed, statusLed);
+  RGB.mirrorTo( NULL, statusLed, NULL);
   Cellular.connect();
   log("Wu SS_Button", 4);
 
@@ -1345,6 +1349,8 @@ void loop() {
         SSButton_longpress += 100;
         delay(100);
       }
+      
+      Particle.publish("status", "SSButton_longpress >= 10000, " + String(secstoTimeout));
       CellularSignal sig = Cellular.RSSI();
       log("Signal Query: " + String(sig.rssi) + "dB" , 4);
       RGB.mirrorDisable();
@@ -1356,13 +1362,13 @@ void loop() {
         digitalWrite(statusLed, HIGH);
         delay(500);
       }
-      secstoTimeout = timeout * 300;
+      secstoTimeout = timeout;
     }
 
     RGB.mirrorTo( statusLed, statusLed, statusLed);
     Particle.process();
     delay(100);
-    secstoTimeout--;
+    secstoTimeout -= 1;
     wd.checkin();
   }
 
@@ -1394,10 +1400,12 @@ void loop() {
     }
     Particle.publishVitals();
     RGB.mirrorTo( statusLed, statusLed, statusLed);
-    goto standby;
+    goto loop;
   }
   
   RGB.mirrorDisable();
+  pinMode(statusLed, OUTPUT);
+  digitalWrite(statusLed,LOW);
   delay(10);
   goToSleep(600);
   delay(1000);
@@ -1504,7 +1512,7 @@ void loop() {
   char buffer[40];
 
   if (now.day() == 1 && now.hour() == 15) {
-    cleanSD();
+    cleanSD("");
   }
 
   // On génère le nopm du fichier à partir de l'heure actuelle, on force 2 caractères par entrée
@@ -1679,7 +1687,7 @@ void goToSleep(long TbeforeWake) {
   pmic.disableBuck();
   softDelay(5000); // Step through the process safely to ensure the lowest Modem Power.
   System.sleep(SS_Button, FALLING, TbeforeWake);
-  softDelay(5000);
+  softDelay(1000);
 }
 
 inline void softDelay(uint32_t t) {

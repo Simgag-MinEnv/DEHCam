@@ -1,4 +1,4 @@
-c:/Users/gagsi01/Documents/Particle/BoronCamDEH/target/1.5.2/boron//obj/./src/user_export.o: \
+c:/Users/gagsi01/Documents/GitHub/DEHCam/target/1.5.2/boron//obj/./src/user_export.o: \
  src/user_export.c \
  ../../../modules/shared/nRF52840/inc/user_part_export.c \
  ../../../modules/shared/nRF52840/inc/module_user_init.h \
