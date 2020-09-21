@@ -2292,7 +2292,7 @@ inline void pinSetFast(pin_t _pin)
    d4980:	b004      	add	sp, #16
    d4982:	bd70      	pop	{r4, r5, r6, pc}
    d4984:	000e08e8 	.word	0x000e08e8
-   d4988:	003d0900 	.word	0x003d0900
+   d4988:	007a1200 	.word	0x007a1200
    d498c:	2003dd10 	.word	0x2003dd10
 
 000d4990 <_ZN7ArduCAM9read_fifoEv>:
@@ -2465,7 +2465,7 @@ inline void pinSetFast(pin_t _pin)
    d4a48:	bdf0      	pop	{r4, r5, r6, r7, pc}
    d4a4a:	bf00      	nop
    d4a4c:	000e08e8 	.word	0x000e08e8
-   d4a50:	003d0900 	.word	0x003d0900
+   d4a50:	007a1200 	.word	0x007a1200
    d4a54:	2003dd10 	.word	0x2003dd10
 
 000d4a58 <_ZN7ArduCAM9write_regEhh>:
@@ -16357,7 +16357,6 @@ public:
 //particle flash --usb target/1.5.2/boron/DEHCam.bin
 //particle flash --usb target/1.4.4/boron/DEHCam.bin
 //particle flash 44515 target/1.5.2/boron/DEHCam.bin
-//./sync-flash.sh 44515 target/1.5.2/boron/DEHCam.bin
 SYSTEM_MODE(AUTOMATIC);
    d933c:	4a57      	ldr	r2, [pc, #348]	; (d949c <_GLOBAL__sub_I_SystemMode+0x18c>)
    d933e:	4958      	ldr	r1, [pc, #352]	; (d94a0 <_GLOBAL__sub_I_SystemMode+0x190>)
@@ -41797,8 +41796,8 @@ TwoWire& __fetch_global_Wire1()
    e21ac:	4300 656c 6e61 4453 5200 7365 7465 4320     .CleanSD.Reset C
    e21bc:	646f 3a65 0020 6e49 7469 0020 3156 342e     ode: .Init .V1.4
    e21cc:	3133 5200 4354 6920 2073 4f4e 2054 7572     31.RTC is NOT ru
-   e21dc:	6e6e 6e69 2167 3100 3a35 3331 313a 0036     nning!.15:13:16.
-   e21ec:	6553 2070 3131 3220 3230 0030 3431 2e32     Sep 11 2020.142.
+   e21dc:	6e6e 6e69 2167 3100 3a36 3631 313a 0031     nning!.16:16:11.
+   e21ec:	6553 2070 3132 3220 3230 0030 3431 2e32     Sep 21 2020.142.
    e21fc:	3132 2e33 3631 2e36 3831 0034 7062 0031     213.166.184.bp1.
    e220c:	6c42 7579 6548 3774 2f00 7541 6f74 6143     BlyuHet7./AutoCa
    e221c:	446d 4845 5500 444e 4645 3000 3030 3030     mDEH.UNDEF.00000

@@ -8,7 +8,6 @@
 //particle flash --usb target/1.5.2/boron/DEHCam.bin
 //particle flash --usb target/1.4.4/boron/DEHCam.bin
 //particle flash 44515 target/1.5.2/boron/DEHCam.bin
-//./sync-flash.sh 44515 target/1.5.2/boron/DEHCam.bin
 void startup();
 void WDevent();
 void handler(const char *topic, const char *data);
@@ -23,7 +22,7 @@ void setup();
 void loop();
 void goToSleep(long TbeforeWake);
 inline void softDelay(uint32_t t);
-#line 6 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/main.ino"
+#line 5 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/main.ino"
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 

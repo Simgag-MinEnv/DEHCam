@@ -2,7 +2,6 @@
 //particle flash --usb target/1.5.2/boron/DEHCam.bin
 //particle flash --usb target/1.4.4/boron/DEHCam.bin
 //particle flash 44515 target/1.5.2/boron/DEHCam.bin
-//./sync-flash.sh 44515 target/1.5.2/boron/DEHCam.bin
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
