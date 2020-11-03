@@ -5,9 +5,9 @@
 #include "Particle.h"
 #line 1 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/main.ino"
 //./build-local.sh main
-//particle flash --usb target/1.5.2/boron/DEHCam.bin
-//particle flash --usb target/1.4.4/boron/DEHCam.bin
-//particle flash 44515 target/1.5.2/boron/DEHCam.bin
+//particle flash --usb target/1.5.2/boron/ArduCamTest.bin
+//particle flash --usb target/1.4.4/boron/ArduCamTest.bin
+//particle flash 44515 target/1.5.2/boron/ArduCamTest.bin
 void startup();
 void WDevent();
 void handler(const char *topic, const char *data);
@@ -61,11 +61,12 @@ String password = "6419_IMYIKL";
 using namespace particleftpclient;
 int port = 21;
 int timeout = 200;
+//ool offlineMode = false;
 bool offlineMode = false;
 bool cloudOutage = false;
 int Batt_low_SP = 330;
 
-#define VERSION_SLUG "V1.431" //2020/09/11
+#define VERSION_SLUG "V1.432" //2020/11/03
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -77,7 +78,7 @@ const int LogEntries = 50;
 int logBufIndex = 0;
 String logbuffer[LogEntries];
 
-String stationName = "UNDEF";
+String stationName = "UNDEF_";
 String BDH = "00000";
 String PublicIP = "no_IP";
 int captureMode = 0;
@@ -336,6 +337,7 @@ void initSD() {
     delay(5000);
     digitalWrite(statusLed, LOW);
     delay(15000);
+    delay(100);
     System.sleep(SS_Button, FALLING, 300);
     delay(1000);
     System.reset();
@@ -478,6 +480,7 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
     int writeerror = 0;
 
     //Tant que le fichier n'est pas vide
+    Particle.disconnect();
     while(SDfile.available() && TotbytesRead <= len) { 
       bytesRead += SDfile.read(buf,bufsize);
       TotbytesRead += bytesRead;
@@ -515,7 +518,7 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
         }
         digitalWrite(statusLed, HIGH);
         bytesRead = 0;
-        delay(100); //
+        delay(200); //
         // Si on dépasse 600000 bytes, il y a un problème...
         if (TotbytesRead > 200000) {
             return 0;
@@ -549,7 +552,7 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
   } else {
     digitalWrite(statusLed, LOW);
   }
-
+  Particle.connect();
 }
 /* 
 * Fonction qui récupère le fichier de configuration sur le site ftp et se met à jour
@@ -642,7 +645,8 @@ int grabPic(String Short_filename) {
     // La caméra est alimentée par un "latching relay", attention, elle consomme beaucoup.
 
     digitalWrite(Cam_on, HIGH);
-    delay(2000);
+    //delay(2000);
+    delay(100);
     myCAM.CS_LOW();
     //On vérifie si la caméra répond sur le bus SPI1
     myCAM.write_reg(ARDUCHIP_TEST1, 0x55);
@@ -688,10 +692,10 @@ int grabPic(String Short_filename) {
   //myCAM.write_reg(ARDUCHIP_MODE, 0x01);		 	//Viens de la librairie, usage inconnu
   // On utilise la compression JPEG
   myCAM.set_format(JPEG);
-  delay(100);
+  delay(10);
   // On initalise la caméra
   myCAM.InitCAM();
-  delay(100);
+  delay(10);
   //myCAM.set_bit(ARDUCHIP_TIM, VSYNC_LEVEL_MASK);
   //myCAM.write_reg(ARDUCHIP_TIM, VSYNC_LEVEL_MASK);
   //delay(100);
@@ -704,20 +708,22 @@ int grabPic(String Short_filename) {
   //myCAM.OV5642_set_JPEG_size(OV5642_320x240);   //works
   //myCAM.OV5642_set_JPEG_size(OV5642_640x480);   // works
   //myCAM.OV5642_set_JPEG_size(OV5642_1600x1200); // works
-  //myCAM.OV5642_set_JPEG_size(OV5642_1280x960);  // worksà
-  myCAM.OV2640_set_JPEG_size(OV2640_1600x1200); //works
-  //myCAM.OV2640_set_JPEG_size(OV2640_1280x1024);
-  delay(100);
+  //myCAM.OV5642_set_JPEG_size(OV5642_1280x960);  // works
+  //myCAM.OV2640_set_JPEG_size(OV2640_1600x1200); //works
+  myCAM.OV2640_set_JPEG_size(OV2640_1280x1024);
+  delay(10);
+  myCAM.set_Special_effects(Normal);
+  delay(10);
   myCAM.set_Light_Mode(Auto);
-  delay(100);
+  delay(10);
 
   // On flush toute info associée à une photo antérieure avant de prendre une photo
   myCAM.flush_fifo();
-  delay(100);
+  delay(10);
   myCAM.clear_fifo_flag();
-  delay(10000);
+  delay(5000);
   myCAM.start_capture();
-  delay(100);
+  delay(10);
 
   unsigned long start_time = millis(),
   last_publish = millis();
@@ -737,7 +743,7 @@ int grabPic(String Short_filename) {
           break;
       }
   }
-  delay(100);
+  delay(10);
   // Lecture de la taille de l'image, inscription dans le log
   int length = myCAM.read_fifo_length();
   log("Is " + String(length), 4);
@@ -756,7 +762,7 @@ int grabPic(String Short_filename) {
     File file;
     String dir;
     //myCAM.CS_HIGH(); //On s'assure de taire la caméra sur le Bus SPI
-    delay(100);
+    delay(10);
      
     dir = String(config.stationName) + "/";
     dir += String(now.year()) + "/";
@@ -778,7 +784,7 @@ int grabPic(String Short_filename) {
     String namePlusDir = "";
     namePlusDir = dir + "/" + Short_filename;
     file = SD.open(namePlusDir, O_WRITE | O_CREAT | O_TRUNC);
-    delay(100);
+    delay(10);
 
     // Si on a pas réussi à le créer, on détruit l'image dans le buffer de la caméra et on retourne en erreur
     if(!file){
@@ -809,7 +815,7 @@ int grabPic(String Short_filename) {
     //Serial.write(BDH);  
     //Serial.write(stationName);
 
-    file.write(buffer, tx_buffer_index);
+    //file.write(buffer, tx_buffer_index);
     tx_buffer_index = 0;
     Particle.process();     
 
@@ -877,15 +883,15 @@ int grabPic(String Short_filename) {
 
     i = 0;
     for (indexer = BDHIndex1; indexer <= 10+BDHIndex1 ; indexer++) {
-        exifInfo3[indexer] = BDH[i];
+        exifInfo3[indexer] = BDH.c_str()[i];
         indexer++;
         exifInfo3[indexer] = 0x00;
         i++;
       } 
     i = 0;
      for (indexer = BDHIndex2; indexer <= 5+BDHIndex2 ; indexer++) {
-        exifInfo5[indexer] = BDH[i];
-        exifInfo7[indexer] = BDH[i];
+        exifInfo5[indexer] = BDH.c_str()[i];
+        exifInfo7[indexer] = BDH.c_str()[i];
         i++;
       }      
 
@@ -898,8 +904,8 @@ int grabPic(String Short_filename) {
       } 
     i = 0;
     for (indexer = StationIndex2; indexer <= 5+StationIndex2 ; indexer++) {
-        exifInfo5[indexer] = stationName[i];
-        exifInfo7[indexer] = stationName[i];
+        exifInfo5[indexer] = stationName.c_str()[i];
+        exifInfo7[indexer] = stationName.c_str()[i];
         i++;
       }
     indexer = 0;
@@ -922,12 +928,12 @@ int grabPic(String Short_filename) {
 
     //On s'adresse maintenant à la caméra
     myCAM.CS_LOW();
-    delay(100);
+    delay(10);
     //log("Capture Done.", 4);
     Particle.publish("status", "Capture done");
     // On veut lire l'image dans le buffer bit par bit
     myCAM.set_fifo_burst();
-    delay(100);
+    delay(10);
 
     tx_buffer_index = 0;
 //    temp = 0;
@@ -936,7 +942,7 @@ int grabPic(String Short_filename) {
       temp = myCAM.read_fifo();
     }   
 
-    delay(500);
+    //delay(10);
     // Tant que les deux derniers octets ne sont pas 0xFF et 0xD9, nous ne sommes pas à la fin du fichier
     // 0xFF et 0xD9 sont les marqueurs standards de la fin d'un JPG
     while( (temp != 0xD9) || (temp_last != 0xFF) )
@@ -1319,8 +1325,8 @@ void setup() {
 void loop() {
   // Variables temporaires propre à cette boucle
   loop:
-  Cellular.on();
-  Particle.connect();
+  //Cellular.on();
+  //Particle.connect();
   int secstoTimeout = timeout;
   int SSButton_longpress = 0;
   String Nametocard;
@@ -1451,19 +1457,19 @@ void loop() {
 
   previousMillis = millis();
   thatTook = 0;
-  while(!Particle.connected()){
-      delay(1000);
-      Particle.process();
-      secstoTimeout--;
-      if (secstoTimeout <= 170) { // Si c'est trop long, on passe en mode cloud outage
-        cloudOutage = true;
-        Particle.disconnect();
-        log("Timeout, CO", 3);
-        break;
-      }
+  while(!Particle.connected() && !offlineMode){
+    delay(1000);
+    Particle.process();
+    secstoTimeout--;
+    if (secstoTimeout <= 170) { // Si c'est trop long, on passe en mode cloud outage
+      cloudOutage = true;
+      Particle.disconnect();
+      log("Timeout, CO", 3);
+      break;
     }
+  }
+  
   secstoTimeout = timeout;
-
   // Décompte du temps de connection en secondes
   thatTook =  (millis() - previousMillis)/1000;
   log("TT " + String(thatTook), 4);
@@ -1628,6 +1634,7 @@ void loop() {
 
 
   // 3 modes d'acquisitions
+  
   switch (captureMode)
   {
   case 0: //3 img/jour
@@ -1682,14 +1689,16 @@ void loop() {
   Serial.print(buf[2]);      
   Serial.println(" day, ");  
   */     
+ 
 
   log("S " + String(secsToWakeup), 4);
   // On dort pour le nombre prédéterminé de secondes. 
   // On peut aussi le repartir avec un front descendant sur la pin D8, 
   // possible ajout d'un bouton de prise d'Image?
   goToSleep(secsToWakeup);
+  //goToSleep(30);
   //System.sleep(SLEEP_MODE_DEEP);
-  
+  //System.reset();
 }
 
 /* 
