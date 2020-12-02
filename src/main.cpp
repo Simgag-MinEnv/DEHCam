@@ -3,7 +3,7 @@
 /******************************************************/
 
 #include "Particle.h"
-#line 1 "c:/Users/gagsi01/Documents/Particle/BoronCamDEH/src/main.ino"
+#line 1 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/main.ino"
 //./build-local.sh main
 //particle flash --usb target/1.5.2/boron/BoronCamDEH.bin
 //particle flash --usb target/1.4.4/boron/BoronCamDEH.bin
@@ -23,7 +23,7 @@ void setup();
 void loop();
 void goToSleep(long TbeforeWake);
 inline void softDelay(uint32_t t);
-#line 6 "c:/Users/gagsi01/Documents/Particle/BoronCamDEH/src/main.ino"
+#line 6 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/main.ino"
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -878,15 +878,15 @@ int grabPic(String Short_filename) {
 
     i = 0;
     for (indexer = BDHIndex1; indexer <= 10+BDHIndex1 ; indexer++) {
-        exifInfo3[indexer] = BDH[i];
+        exifInfo3[indexer] = BDH.c_str()[i];
         indexer++;
         exifInfo3[indexer] = 0x00;
         i++;
       } 
     i = 0;
      for (indexer = BDHIndex2; indexer <= 5+BDHIndex2 ; indexer++) {
-        exifInfo5[indexer] = BDH[i];
-        exifInfo7[indexer] = BDH[i];
+        exifInfo5[indexer] = BDH.c_str()[i];
+        exifInfo7[indexer] = BDH.c_str()[i];
         i++;
       }      
 
@@ -899,8 +899,8 @@ int grabPic(String Short_filename) {
       } 
     i = 0;
     for (indexer = StationIndex2; indexer <= 5+StationIndex2 ; indexer++) {
-        exifInfo5[indexer] = stationName[i];
-        exifInfo7[indexer] = stationName[i];
+        exifInfo5[indexer] = stationName.c_str()[i];
+        exifInfo7[indexer] = stationName.c_str()[i];
         i++;
       }
     indexer = 0;
