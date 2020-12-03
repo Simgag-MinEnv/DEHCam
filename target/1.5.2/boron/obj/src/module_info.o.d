@@ -1,4 +1,4 @@
-c:/Users/gagsi01/Documents/Particle/BoronCamDEH/target/1.5.2/boron//obj/./src/module_info.o: \
+c:/Users/gagsi01/Documents/GitHub/DEHCam/target/1.5.2/boron//obj/./src/module_info.o: \
  src/module_info.c ../../../dynalib/inc/module_info.inc \
  ../../../dynalib/inc/module_info.h ../../../services/inc/static_assert.h \
  c:\users\gagsi01\.particle\toolchains\gcc-arm\5.3.1\arm-none-eabi\include\assert.h \

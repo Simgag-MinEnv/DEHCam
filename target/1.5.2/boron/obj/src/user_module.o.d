@@ -1,4 +1,4 @@
-c:/Users/gagsi01/Documents/Particle/BoronCamDEH/target/1.5.2/boron//obj/./src/user_module.o: \
+c:/Users/gagsi01/Documents/GitHub/DEHCam/target/1.5.2/boron//obj/./src/user_module.o: \
  src/user_module.c \
  ../../../modules/shared/nRF52840/inc/user-part/user_module.inc \
  ../../../dynalib/inc/dynalib.h
