@@ -1,7 +1,7 @@
 //./build-local.sh main
-//particle flash --usb target/1.5.2/boron/ArduCamTest.bin
-//particle flash --usb target/1.4.4/boron/ArduCamTest.bin
-//particle flash 44515 target/1.5.2/boron/ArduCamTest.bin
+//particle flash --usb target/1.5.2/boron/DEHCam.bin
+//particle flash --usb target/2.0.0/boron/DEHCam.bin
+//particle flash 44515 target/2.0.0/boron/DEHCam.bin
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -45,7 +45,7 @@ bool offlineMode = false;
 bool cloudOutage = false;
 int Batt_low_SP = 330;
 
-#define VERSION_SLUG "V1.432" //2020/11/03
+#define VERSION_SLUG "V1.433" //2020/12/07
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -1370,7 +1370,7 @@ void loop() {
       secstoTimeout = timeout;
     }
 
-    RGB.mirrorTo( statusLed, statusLed, statusLed);
+    RGB.mirrorTo(NULL, statusLed, NULL);
     Particle.process();
     delay(100);
     secstoTimeout -= 1;
