@@ -765,7 +765,7 @@ void ArduCAM::set_mode(uint8_t mode)
 uint8_t ArduCAM::bus_write(int address,int value)
 {
 #if defined (PARTICLE)
-  SPI1.beginTransaction(SPISettings(4*MHZ, MSBFIRST, SPI_MODE0));
+  SPI1.beginTransaction(SPISettings(8*MHZ, MSBFIRST, SPI_MODE0));
 #endif
 
 	cbi(P_CS, B_CS);
@@ -787,7 +787,7 @@ uint8_t ArduCAM::bus_write(int address,int value)
 uint8_t ArduCAM:: bus_read(int address)
 {
 #if defined (PARTICLE)
-  SPI1.beginTransaction(SPISettings(4*MHZ, MSBFIRST, SPI_MODE0));
+  SPI1.beginTransaction(SPISettings(8*MHZ, MSBFIRST, SPI_MODE0));
 #endif
 
 	uint8_t value;
