@@ -28,15 +28,11 @@ PCF8523 rtc;
 char monthOfTheYear[12][5] = {"JAN", "FEV", "MAR", "AVR", "MAI", "JUN", "JUL", "AOU", "SEP", "OCT", "NOV", "DEC"};
 DateTime now;
 
-String hostname = "142.213.166.184";
-String username = "bp1";
-String password = "BlyuHet7";
-String ftp_dir = "/AutoCamDEH";
-/*
-String hostname = "173.181.243.41";
-String username = "6419_FTPCEL";
-String password = "6419_IMYIKL";
-*/
+String hostname = "[YOUR FTP SERVER IP]";
+String username = "[YOUR FTP SERVER USERNAME]";
+String password = "[YOUR FTP SERVER PASSWORD]";
+String ftp_dir = "[YOUR FTP SERVER DIRECTORY]";
+
 using namespace particleftpclient;
 int port = 21;
 int timeout = 200;
@@ -58,7 +54,7 @@ int logBufIndex = 0;
 String logbuffer[LogEntries];
 
 String stationName = "UNDEF_";
-String BDH = "00000";
+String BDH = "00000"; //ITEM REFERENCE NUMBER
 String PublicIP = "no_IP";
 int captureMode = 0;
 
@@ -565,7 +561,7 @@ bool getConfig(String dir) {
   }
 
   // Tentative de récupération du fichier, après un retr réussi, l'info se trouve dans le buffer TCP
-  if (!ftp.retr("/AutoCamDEH/config/" + BDH + "/CONFIG.JSN")) {
+  if (!ftp.retr("/AutoCamDEH/config/" + BDH + "/CONFIG.JSN")) { //HARDCODED PATH FOR SOME REASON, YOU MAY USE YOUR VARIABLE
     log("Couldn't retrieve CONFIG.JSN", 2);
     return 0;
   } else { //l'opération a réussi, nous pouvons supprimer le fichier de configuration pour le mettre à jour
@@ -1132,7 +1128,7 @@ void printNclearSDlogBuffer() {
 * Fonction concierge pour éviter le trop plein de données
 *
 */
-int cleanSD(String Dummy) {
+int cleanSD(String Dummy) { //you may only call a function with a parameter from particle cloud hence dummy parameter
   int FolderRmvd = 0;
   int FileRmvd = 0;
   Particle.publish("status", "Cleaning old photos on SD...");
