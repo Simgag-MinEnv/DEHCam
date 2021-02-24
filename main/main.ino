@@ -148,9 +148,9 @@ struct Config {
   char PublicIP[20] = "0.0.0.0";
   int captureMode = 0;  //0:3 img/jour, 1:12 img/jour (7-18), 2:24 img/jour
   int Batt_low_SP = 20;
-  char ftp_hostname[50] = "142.213.166.184";
-  char ftp_username[20] = "bp1";
-  char ftp_password[20] = "BlyuHet7";
+  char ftp_hostname[50] = "XXX.XXX.XXX.XXX";
+  char ftp_username[20] = "USER";
+  char ftp_password[20] = "PASSWORD";
   char ftp_dir[50] = "/AutoCamDEH";
 };
 
