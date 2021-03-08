@@ -972,16 +972,17 @@ void log(String msg, int Loglevel) {
   Serial.println(msg);
 
   // Dans le dossier logs/
-  String dir ="LOGS/" ;
+  String dir ="/LOGS/" ;
   char buffer[20];
   // On prend l'heure actuelle
   DateTime logtime = rtc.now();
-  String logFileName = dir + String(monthOfTheYear[logtime.month()-1]) + String(logtime.year()) + ".TXT";
+  String logFileName = dir;
+  logFileName += String(monthOfTheYear[logtime.month()-1]) + String(logtime.year()) + ".TXT";
   File file;
 
   // on crée le répertoire s'il n'existe pas
-  file = SD.open(dir);
-  if(file) {
+  if(SD.exists(dir)) {
+    file = SD.open(dir);
     if(!file.isDirectory()) {
       Serial.println("Error in log dir...");
       file.close();
@@ -1039,6 +1040,7 @@ void log(String msg, int Loglevel) {
     sprintf(buffer,"%04d%02d%02d;%02d%02d%02d;", logtime.year(),logtime.month(), logtime.day(), logtime.hour(), logtime.minute(), logtime.second());
     file.print(buffer);
     file.println(msg);
+    delay(100);
     
     file.close();
   }
@@ -1596,7 +1598,7 @@ void loop() {
       SD.rmdir(buffer);
     } else {
 
-      Serial.println("folder temp doesn't exists");
+      Serial.println("folder temp doesn't exist");
     }
     Particle.publish("status", "Sleeping");
   }   
