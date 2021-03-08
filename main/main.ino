@@ -25,7 +25,7 @@ FuelGauge fuel;
 ApplicationWatchdog wd(90000, WDevent);
 
 PCF8523 rtc;
-char monthOfTheYear[12][5] = {"JAN", "FEV", "MAR", "AVR", "MAI", "JUN", "JUL", "AOU", "SEP", "OCT", "NOV", "DEC"};
+char monthOfTheYear[12][4] = {"JAN", "FEV", "MAR", "AVR", "MAI", "JUN", "JUL", "AOU", "SEP", "OCT", "NOV", "DEC"};
 DateTime now;
 
 String hostname = "[YOUR FTP SERVER IP]";
@@ -41,7 +41,7 @@ bool offlineMode = false;
 bool cloudOutage = false;
 int Batt_low_SP = 330;
 
-#define VERSION_SLUG "V1.431" //2020/09/11
+#define VERSION_SLUG "V1.432" //2021/02/08
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -1265,12 +1265,12 @@ void setup() {
     goToSleep(3600);
     }  
 
-  log("Reset Code: " + String(System.resetReason()),4);
-
   //Initialisation de divers périphériques
   rtc.begin();
   Serial.begin(115200);
   rtc.clear_rtc_interrupt_flags();
+
+  log("Reset Code: " + String(System.resetReason()),4);
   log("Init " + String(VERSION_SLUG), 4);
   
   // Si le rtc n'est pas en fonction, utiliser la date et l'heure 
@@ -1340,7 +1340,7 @@ void loop() {
   }
 
   standby:
-  secstoTimeout = timeout * 300;
+  secstoTimeout = timeout * 30;
   SSButton_longpress = 0;
   
   while(SSButton_longpress <= 2000 && secstoTimeout > 0) {
@@ -1408,8 +1408,8 @@ void loop() {
   pinMode(statusLed, OUTPUT);
   digitalWrite(statusLed,LOW);
   delay(10);
-  goToSleep(600);
-  delay(1000);
+  //goToSleep(600);
+  delay(100);
   goto loop;
   
 }  
