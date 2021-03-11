@@ -12,7 +12,7 @@ void startup();
 void WDevent();
 void handler(const char *topic, const char *data);
 void initSD();
-bool syncFTP(String SDfilename, bool retry, String dir, int Ttype);
+bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype);
 bool getConfig(String dir);
 int grabPic(String Short_filename);
 void log(String msg, int Loglevel);
@@ -63,7 +63,7 @@ bool offlineMode = false;
 bool cloudOutage = false;
 int Batt_low_SP = 330;
 
-#define VERSION_SLUG "V2.0.0-RC1"
+#define VERSION_SLUG "V2.0.0-RC2"
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -80,7 +80,29 @@ String BDH = "00000"; //ITEM REFERENCE NUMBER
 String PublicIP = "no_IP";
 int captureMode = 0;
 
+ArduCAM myCAM(OV2640, SPI_CS);
+PMIC pmic;
+ParticleFtpClient ftp = ParticleFtpClient();
+File root;
 
+/*
+* Définition des champs du fichier de configuration. (création d'un type Struct)
+* Pour ajouter ou supprimer, ne pas oublier de modifier également
+* La fonction "LoadConfiguration" et la fonction "SaveConfiguration"
+*/
+struct Config {
+  char BDH[8] = "00000";
+  char stationName[20] =  "UNDEF";
+  char PublicIP[20] = "0.0.0.0";
+  int captureMode = 0;  //0:3 img/jour, 1:12 img/jour (7-18), 2:24 img/jour
+  int Batt_low_SP = 20;
+  char ftp_hostname[50] = "XXX.XXX.XXX.XXX";
+  char ftp_username[20] = "USER";
+  char ftp_password[20] = "PASSWORD";
+  char ftp_dir[50] = "/AutoCamDEH";
+};
+
+Config config; //Déclaration de l'objet struct de configuration nommé "config"
 
 ////////////////////////Template EXIF/////////////////////////////////////////
 
@@ -132,55 +154,13 @@ int captureMode = 0;
 
 ////////////////////////Fin du Template EXIF////////////////////////////////////
 
-
-// allow us to use itoa() in this scope
-//extern char* itoa(int a, char* buffer, unsigned char radix);
-//#define BMPIMAGEOFFSET 66
-//const char bmp_header[BMPIMAGEOFFSET] PROGMEM =
-//{
-//      0x42, 0x4D, 0x36, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x28, 0x00,
-//      0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x03, 0x00,
-//      0x00, 0x00, 0x00, 0x58, 0x02, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0xC4, 0x0E, 0x00, 0x00, 0x00, 0x00,
-//      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0xE0, 0x07, 0x00, 0x00, 0x1F, 0x00,
-//      0x00, 0x00
-//};
-
-ArduCAM myCAM(OV2640, SPI_CS);
-PMIC pmic;
-
-ParticleFtpClient ftp = ParticleFtpClient();
-
-File root;
-
+///////////////////////////FIN DES DECALARATIONS//////////////////////////////////////////////////
 // The STARTUP call is placed outside of any other function
 // What goes inside is any valid code that can be executed. Here, we use a function call.
 // Using a single function is preferable to having several `STARTUP()` calls.
 STARTUP(startup());
 
 //STARTUP();
-
-/*
-* Définition des champs du fichier de configuration. (création d'un type Struct)
-* Pour ajouter ou supprimer, ne pas oublier de modifier également
-* La fonction "LoadConfiguration" et la fonction "SaveConfiguration"
-*/
-struct Config {
-  char BDH[8] = "00000";
-  char stationName[20] =  "UNDEF";
-  char PublicIP[20] = "0.0.0.0";
-  int captureMode = 0;  //0:3 img/jour, 1:12 img/jour (7-18), 2:24 img/jour
-  int Batt_low_SP = 20;
-  char ftp_hostname[50] = "XXX.XXX.XXX.XXX";
-  char ftp_username[20] = "USER";
-  char ftp_password[20] = "PASSWORD";
-  char ftp_dir[50] = "/AutoCamDEH";
-};
-
-Config config; //Déclaration de l'objet struct de configuration nommé "config"
-
-/////////////////////////////////////////////////////////////////////////////
-
-
 /*
 * Ceci est exécuté avant même void Setup
 * V1.0 2019-11-14
@@ -345,12 +325,12 @@ void initSD() {
 * V1.1 2019-12-17, Cell reset after tryouts
 * V1.2 2020-02-07, Ttype instead of isLog, 0= regular img, 1= log, 2= offline img (temp folder) 
 */
-bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) { 
-  
+bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) { 
+  Serial.println("SDFILENAME: " + String(SDfilename));
   //Déclaration de variable temporaire
   //static const size_t bufferSize = 256;// grosseur des blocs de données à envoyer 
   //static uint8_t buffer[bufferSize] = {0xFF}; //Terminer le bloc par un 0xFF
-  String DestFilename = "";
+  char DestFilename[25];
   char buffersprint1 [50]; // Variables temporaires pour générer les noms de fichiers et 
   char buffersprint2 [50]; // chemins d'arborescence
   uint32_t len = 0;
@@ -383,32 +363,40 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
   // on configure les chemins d'arborescence et les noms de fichiers
   if(Ttype == 0) {
     //Nom de l'image à destination
-    sprintf(buffersprint1,"%s_%d%02d%s",stationName.c_str(), now.year(),now.month(),SDfilename.c_str());
-    DestFilename = buffersprint1;
+    sprintf(DestFilename,"%s_%d%d%s",config.stationName, now.year(),now.month(),SDfilename);
+    //DestFilename = buffersprint1;
+    Serial.println("T0DESTFILENAME: " + String(DestFilename));
 
     //nom et chemin de l'image sur la carte SD 
-    sprintf(buffersprint2,"/%s/%d/%d/%s",stationName.c_str(),now.year(), now.month(),SDfilename.c_str());
+    sprintf(buffersprint2,"/%s/%d/%d/%s",config.stationName,now.year(), now.month(),SDfilename);
     SDfilename = buffersprint2;
+    Serial.println("T0SDFILENAME: " + String(SDfilename));
+
   } else if(Ttype == 1)   {
       // S'il s'agit d'un log, le nom du fichier à destination ne change pas et l'arborescence 
       // dans la carte SD n'est pas la même (/LOGS/moisAnnée.txt)
-      sprintf(buffersprint2,"/%s/%s", "LOGS",SDfilename.c_str());
-      DestFilename = SDfilename;
+      sprintf(buffersprint2,"/%s/%s", "LOGS",SDfilename);
+      Serial.println("T1SDFILENAME: " + String(SDfilename));
+
+      sprintf(DestFilename,"%s",SDfilename);
+      Serial.println("T1DESTFILENAME: " + String(DestFilename));
+      //DestFilename = SDfilename;
       SDfilename = buffersprint2;
+      Serial.println("SDFILENAME: " + String(SDfilename));
     } else if(Ttype == 2)   {
       //Nom de l'image à destination
-      sprintf(buffersprint1,"%s_%d%02d%s",stationName.c_str(), now.year(),now.month(),SDfilename.c_str());
-      DestFilename = buffersprint1;
+      sprintf(DestFilename,"%s_%d%d%s",config.stationName, now.year(),now.month(),SDfilename);
+      //DestFilename = buffersprint1;
 
       //nom et chemin de l'image sur la carte SD 
-      sprintf(buffersprint2,"/%s/%d/%d/TEMP/%s",stationName.c_str(),now.year(), now.month(),SDfilename.c_str());
-      SDfilename = buffersprint2;
+      sprintf(SDfilename,"/%s/%d/%d/TEMP/%s",config.stationName,now.year(), now.month(),SDfilename);
+      //SDfilename = buffersprint2;
     }
 
  
   //Voir si notre fichier existe déjà sur le serveur
   if (!ftp.list(DestFilename)) {
-    log("could not find : " + DestFilename, 4);
+    log("could not find : " + String(DestFilename), 4);
   } else {
       ftp.data.flush();
       ftp.finish();
@@ -423,7 +411,7 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
   }
 
   //On ouvre le fichier dans la carte SD, si l'opération réussie, initier le transfert
-  log("Tfile: " + DestFilename + " SD:" +  SDfilename, 4);
+  log("Tfile: " + String(DestFilename) + " SD:" +  SDfilename, 4);
   File SDfile = SD.open(SDfilename);
   delay(100);
   if (SDfile) {
@@ -776,7 +764,7 @@ int grabPic(String Short_filename) {
        //log("Directory" + dir + "does not exist, trying to create it...", 3,1);
       if(!SD.mkdir(dir)){
        //log("SD mkdir failed", 2,1);
-       return false;
+       return 0;
       } 
     } 
 
@@ -1338,7 +1326,8 @@ void loop() {
   //Particle.connect();
   int secstoTimeout = timeout;
   int SSButton_longpress = 0;
-  String Nametocard;
+  char Nametocard[13];
+  int tempfiles = 0;
   //uint8_t buf[4];
   Particle.process(); // on oublie pas le cloud
   SleepResult result = System.sleepResult();
@@ -1387,11 +1376,11 @@ void loop() {
       
       Particle.publish("status", "SSButton_longpress >= 10000, " + String(secstoTimeout));
       CellularSignal sig = Cellular.RSSI();
-      log("Signal Query: " + String(sig.rssi) + "dB" , 4);
+      log("Signal Query: " + String(sig.getStrengthValue()) + "dB" , 4);
       RGB.mirrorDisable();
       pinMode(statusLed, OUTPUT);
       delay(100);     
-      for (size_t i = 0; i <= -(sig.rssi/10) ; i++) {
+      for (size_t i = 0; i <= -(sig.getStrengthValue()/10) ; i++) {
         digitalWrite(statusLed, LOW);
         delay(500);
         digitalWrite(statusLed, HIGH);
@@ -1487,7 +1476,7 @@ void loop() {
   String SOC = String(fuel.getSoC());
   String VCell = String(fuel.getVCell());
   CellularSignal sig = Cellular.RSSI();
-  log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.rssi) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
+  log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.getStrengthValue()) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
   if (sig.getQuality() < 25) offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
 
   // Opérations à faire seulement si nous avons une connection réseau confirmée
@@ -1496,7 +1485,7 @@ void loop() {
       Particle.publish("particle/device/ip", PRIVATE);
       Particle.publish("particle/device/name");
       Particle.publish("Batt_SOC",SOC);
-      Particle.publish("RSSI",String(sig.rssi));
+      Particle.publish("RSSI",String(sig.getStrengthValue()));
 
       // On force un synchronisation du temps de l'horloge interne avec le cloud
       Particle.syncTime();
@@ -1545,6 +1534,7 @@ void loop() {
   Serial.print(String(now.second()));
   Serial.println();
   char buffer[40];
+  char buffer2[40];
 
   if (now.day() == 1 && now.hour() == 15) {
     cleanSD("");
@@ -1552,12 +1542,13 @@ void loop() {
 
   // On génère le nopm du fichier à partir de l'heure actuelle, on force 2 caractères par entrée
   // exemple: 02 au lieu de 2
-  sprintf(buffer,"%02d%02d%02d%02d.jpg", now.day(),now.hour(), now.minute(), now.second());
-  Nametocard = buffer;
+  sprintf(Nametocard,"%02d%02d%02d%02d.jpg", now.day(),now.hour(), now.minute(), now.second());
+  //Nametocard = buffer;
+  Serial.println("grabpic Nametocard: " + String(Nametocard));
 
   // On déclanche la prise de photo avec le nom généré précédemment
-  if(!grabPic(Nametocard)){
-    log("GrabPic failed, name of file: " + Nametocard, 1);
+  if(!grabPic(String(Nametocard))){
+    log("GrabPic failed, name of file: " + String(Nametocard), 1);
     delay(5000);
     goToSleep(300);
     goto start;
@@ -1576,6 +1567,7 @@ void loop() {
   // 3 essais avant d'abandonner, 5 secondes entre les essais
   if(!offlineMode){
     int attempts = 0;
+    Serial.println("beforesync Nametocard: " + String(Nametocard));
     if(!syncFTP(Nametocard, false,ftp_dir, 0)){
         log("Isync fail", 2);
         while(!Cellular.ready()){
@@ -1594,12 +1586,13 @@ void loop() {
       }   
 
     attempts = 0;
-    // On déclanche la synchronisation FTP du Log (à désactiver en cas de mode offline) 3 essais...
-    if(!syncFTP(String(monthOfTheYear[now.month()-1]) + String(now.year()) + ".txt", true,"/AutoCamDEH/config/" + BDH, 1)){
+    // On déclanche la synchronisation FTP du Log (à désactiver en cas de mode offline), 3 essais...
+    sprintf(buffer,"%s%d%s",monthOfTheYear[now.month()-1],now.year(), ".txt");
+    if(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1)){
         log("Lsync fail", 2);
         delay(5000);
         while(!Cellular.ready());
-        while(!syncFTP(String(monthOfTheYear[now.month()-1]) + String(now.year()) + ".txt", true,"/AutoCamDEH/config/" + BDH, 1) && attempts < 1){
+        while(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1) && attempts < 1){
           log("Lsync fail again", 2);
           attempts++;
           while(!Cellular.ready());
@@ -1608,29 +1601,33 @@ void loop() {
         log("LSuc", 4);
         attempts = 0;
       }   
-    sprintf(buffer,"%s/%d/%d/temp/",stationName.c_str(),now.year(), now.month());
+    sprintf(buffer,"%s/%d/%d/TEMP/",stationName.c_str(),now.year(), now.month());
     Serial.println("looking for: " + String(buffer));
     if(SD.exists(buffer)) {
       Serial.println("folder temp exists");
       root = SD.open(buffer);
       File BuPic = root.openNextFile();
       while(BuPic && !BuPic.isDirectory()){
-        Nametocard = BuPic.name() ;
-        Serial.println("Name of offline pic: " + Nametocard);
+        tempfiles += 1;
+        BuPic.getName(Nametocard,13) ;
+        Serial.println("Name of offline pic: " + String(Nametocard));
         BuPic.close();
         while(!syncFTP(Nametocard,false,ftp_dir,2) && attempts < 1) {
           attempts++;
           while(!Cellular.ready());
         }
-        SD.remove(buffer + Nametocard);
+        sprintf(buffer2,"%s/%d/%d/",stationName.c_str(),now.year(), now.month());
+        SD.rename(buffer + String(Nametocard),buffer2 +  String(Nametocard));
+        //SD.remove(buffer + String(Nametocard));
         BuPic = root.openNextFile();
       }
       root.close();
-      Serial.println("Backup Pic dump Done");
       SD.rmdir(buffer);
+      log("OFL Pic dump Done,Nb of files: " + String(tempfiles), 4);
+      tempfiles = 0;
     } else {
 
-      Serial.println("folder temp doesn't exist");
+      Serial.println("No OFL files");
     }
     Particle.publish("status", "Sleeping");
   }   
