@@ -27,5 +27,5 @@ jobs:
       - name: Run a multi-line script
         run: |
           echo installing particle cli
-          npm particle-cli
+          npm install particle-cli
           particle flash 45898 DEHCam/target/1.5.2/boron/DEHCam.bin
