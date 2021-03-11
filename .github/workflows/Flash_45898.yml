@@ -27,5 +27,8 @@ jobs:
       - name: Run a multi-line script
         run: |
           echo installing particle cli
+          npm install node.js
+          git clone git@github.com:particle-iot/particle-cli.git && cd ./particle-cli          
           npm install particle-cli
+          npm start particle-cli
           particle flash 45898 DEHCam/target/1.5.2/boron/DEHCam.bin
