@@ -21,21 +21,21 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
   8 .module_info_crc 00000004  000e4f60  000e4f60  00034f60  2**0
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  9 .debug_info   003f6ced  00000000  00000000  00034f64  2**0
+  9 .debug_info   003f6cec  00000000  00000000  00034f64  2**0
                   CONTENTS, READONLY, DEBUGGING
- 10 .debug_abbrev 00036a90  00000000  00000000  0042bc51  2**0
+ 10 .debug_abbrev 00036a90  00000000  00000000  0042bc50  2**0
                   CONTENTS, READONLY, DEBUGGING
- 11 .debug_loc    00058e2c  00000000  00000000  004626e1  2**0
+ 11 .debug_loc    00058e2c  00000000  00000000  004626e0  2**0
                   CONTENTS, READONLY, DEBUGGING
- 12 .debug_aranges 00004410  00000000  00000000  004bb50d  2**0
+ 12 .debug_aranges 00004410  00000000  00000000  004bb50c  2**0
                   CONTENTS, READONLY, DEBUGGING
- 13 .debug_ranges 0000eb20  00000000  00000000  004bf91d  2**0
+ 13 .debug_ranges 0000eb20  00000000  00000000  004bf91c  2**0
                   CONTENTS, READONLY, DEBUGGING
- 14 .debug_macro  000614d1  00000000  00000000  004ce43d  2**0
+ 14 .debug_macro  000614d1  00000000  00000000  004ce43c  2**0
                   CONTENTS, READONLY, DEBUGGING
- 15 .debug_line   00093fe4  00000000  00000000  0052f90e  2**0
+ 15 .debug_line   00093fe4  00000000  00000000  0052f90d  2**0
                   CONTENTS, READONLY, DEBUGGING
- 16 .debug_str    0012f5e1  00000000  00000000  005c38f2  2**0
+ 16 .debug_str    0012f5e1  00000000  00000000  005c38f1  2**0
                   CONTENTS, READONLY, DEBUGGING
  17 .debug_frame  0000c2ec  00000000  00000000  006f2ed4  2**2
                   CONTENTS, READONLY, DEBUGGING
@@ -2861,8 +2861,8 @@ inline system_tick_t millis(void) { return HAL_Timer_Get_Milli_Seconds(); }
    d5310:	2101      	movs	r1, #1
    d5312:	2007      	movs	r0, #7
    d5314:	f00c f935 	bl	e1582 <digitalWrite>
-        delay(200); //
-   d5318:	20c8      	movs	r0, #200	; 0xc8
+        delay(2); //
+   d5318:	2002      	movs	r0, #2
    d531a:	f00a fcc5 	bl	dfca8 <delay>
         if (TotbytesRead > 200000) {
    d531e:	4b85      	ldr	r3, [pc, #532]	; (d5534 <_Z7syncFTPPcb6Stringi+0x888>)
@@ -35607,7 +35607,7 @@ TwoWire& __fetch_global_Wire1()
    e3408:	2074696e 2e325600 2d302e30 00324352     nit .V2.0.0-RC2.
    e3418:	72616f42 65742064 003a706d 20435452     Board temp:.RTC 
    e3428:	4e207369 7220544f 696e6e75 0021676e     is NOT running!.
-   e3438:	303a3531 39343a31 72614d00 20353120     15:01:49.Mar 15 
+   e3438:	343a3531 32303a38 72614d00 20363120     15:48:02.Mar 16 
    e3448:	31323032 4f595b00 46205255 53205054     2021.[YOUR FTP S
    e3458:	45565245 50492052 595b005d 2052554f     ERVER IP].[YOUR 
    e3468:	20505446 56524553 55205245 4e524553     FTP SERVER USERN

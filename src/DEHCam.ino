@@ -481,7 +481,7 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
         }
         digitalWrite(statusLed, HIGH);
         bytesRead = 0;
-        delay(200); //
+        //delay(200); //removed since 2.0.1
         // Si on dépasse 600000 bytes, il y a un problème...
         if (TotbytesRead > 200000) {
             return 0;
