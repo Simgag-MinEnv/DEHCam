@@ -396,7 +396,7 @@ bool syncFTP(String SDfilename, bool retry, String dir, int Ttype) {
   // Si le dernier transfert à échoué, tenter de supprimer le fichier avorté
   if(retry == true) {
     if(!ftp.dele(DestFilename)){
-      log("could not delete file", 2);
+      log("could not delete file", 3);
     }
     log("Fd", 4);
   }
@@ -1408,8 +1408,8 @@ void loop() {
   pinMode(statusLed, OUTPUT);
   digitalWrite(statusLed,LOW);
   delay(10);
-  goToSleep(600);
-  delay(1000);
+  //goToSleep(600);
+  delay(100);
   goto loop;
   
 }  
