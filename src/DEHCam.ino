@@ -9,7 +9,7 @@ SYSTEM_THREAD(ENABLED);
 #include "memorysaver.h"
 #include "ParticleFTPClient.h"
 #include "SdFat.h"
-#include <DS18B20.h>
+#include "DS18B20.h"
 #include "PCF8523.h"
 #include "ArduinoJson.h"
 //#include "ov2640_regs.h"

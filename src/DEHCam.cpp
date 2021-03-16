@@ -30,7 +30,7 @@ SYSTEM_THREAD(ENABLED);
 #include "memorysaver.h"
 #include "ParticleFTPClient.h"
 #include "SdFat.h"
-#include <DS18B20.h>
+#include "DS18B20.h"
 #include "PCF8523.h"
 #include "ArduinoJson.h"
 //#include "ov2640_regs.h"
@@ -794,7 +794,7 @@ int grabPic(String Short_filename) {
     //Serial.println("Creating EXIF header");
     sprintf(Vbatstr, "%1.2f", fuel.getVCell());
     //Serial.write(Vbatstr);
-    sprintf(RSSIstr, "%2d", sig.rssi);
+    sprintf(RSSIstr, "%2d", sig.getStrengthValue());
     //Serial.write(RSSIstr);
     sprintf(Datestr, "%04d%02d%02d", now.year(),now.month(),now.day());
    // Serial.write(Datestr);
