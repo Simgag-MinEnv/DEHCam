@@ -4,10 +4,6 @@
 
 #include "Particle.h"
 #line 1 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/DEHCam.ino"
-//./build-local.sh main
-//particle flash --usb target/1.5.2/boron/DEHCam.bin
-//particle flash --usb target/1.4.4/boron/DEHCam.bin
-//particle flash 44515 target/1.5.2/boron/DEHCam.bin
 void startup();
 void WDevent();
 void handler(const char *topic, const char *data);
@@ -22,7 +18,14 @@ void setup();
 void loop();
 void goToSleep(long TbeforeWake);
 inline void softDelay(uint32_t t);
-#line 5 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/DEHCam.ino"
+int Cloud_IAM(String EnIAM);
+void IAM();
+int updateConfig(String Config_Command);
+int ForcePic(String PicName);
+int Cloud_RESET(String dummy);
+#line 1 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/DEHCam.ino"
+PRODUCT_ID(14006)
+PRODUCT_VERSION(5)
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -61,9 +64,14 @@ int timeout = 200;
 //ool offlineMode = false;
 bool offlineMode = false;
 bool cloudOutage = false;
+bool IAM_Mode = false;
+bool CloudReset = false;
+//bool NoSD Mode = false; //Ajout potentiel
 int Batt_low_SP = 330;
+String IAM_Command = "";
+String IAM_CmdValue = "";
 
-#define VERSION_SLUG "V2.0.0-RC2"
+#define VERSION_SLUG "V2.0.0-RC3"
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
@@ -172,6 +180,8 @@ void startup() {
 
 void WDevent() {
   log("Watchdog timeout", 1);
+  SD.end();
+  delay(100);
   System.reset();
 }
 
@@ -185,9 +195,10 @@ void loadConfiguration(const char *filename, Config &config) {
     StaticJsonDocument<512> doc; //Allocation de mémoire pour la désérialisation JSON des paramètres
     DeserializationError error = deserializeJson(doc, file); // Désérialisation
     if (!error) {
+      /*
       // Copie des valeurs issues du fichier vers les champs associés du Struct config
       strlcpy(config.BDH,                  // <- destination
-        doc["BDH"] | BDH,  // <- source
+        doc["BDH"] | BDH,  // <- source | valeur par défaut
         sizeof(config.BDH));         // <- destination's capacity
       strlcpy(config.stationName,  doc["stationName"] |  stationName, sizeof(config.stationName));        
       strlcpy(config.PublicIP,     doc["PublicIP"] |     PublicIP,    sizeof(config.PublicIP));
@@ -197,6 +208,20 @@ void loadConfiguration(const char *filename, Config &config) {
       strlcpy(config.ftp_username, doc["ftp_username"] | username,    sizeof(config.ftp_username)); 
       strlcpy(config.ftp_password, doc["ftp_password"] | password,    sizeof(config.ftp_password)); 
       strlcpy(config.ftp_dir,      doc["ftp_dir"] |      ftp_dir,     sizeof(config.ftp_dir));   
+      */
+
+      // Copie des valeurs issues du fichier vers les champs associés du Struct config
+      strlcpy(config.BDH,                  // <- destination
+              doc["BDH"] | BDH,  // <- source | valeur par défaut
+              sizeof(config.BDH));         // <- destination's capacity
+      strlcpy(config.stationName,  doc["stationName"], sizeof(config.stationName));        
+      strlcpy(config.PublicIP,     doc["PublicIP"],    sizeof(config.PublicIP));
+      config.captureMode =         doc["Capture_Mode"]; //méthode différente car type Int au lieu de String
+      config.Batt_low_SP =         doc["Batt_low_SP"];
+      strlcpy(config.ftp_hostname, doc["ftp_hostname"],sizeof(config.ftp_hostname));  
+      strlcpy(config.ftp_username, doc["ftp_username"],sizeof(config.ftp_username)); 
+      strlcpy(config.ftp_password, doc["ftp_password"],sizeof(config.ftp_password)); 
+      strlcpy(config.ftp_dir,      doc["ftp_dir"],     sizeof(config.ftp_dir));        
     } else {
         Serial.println("Failed to parse config file, using default");
         Particle.publish("Status","Failed to parse config file, using default");
@@ -308,11 +333,12 @@ void handler(const char *topic, const char *data) {
 
 void initSD() {
   if (!SD.begin(SD_CS)) {
-    Serial.println("SD Card initialization failed!! Resetting in 15 seconds");
+    Serial.println("SD Card initialization failed!! Resetting in 5 minutes");
     digitalWrite(statusLed, HIGH);
     delay(5000);
     digitalWrite(statusLed, LOW);
     delay(15000);
+    Particle.publish("status","SD Card Init Fail!");
     delay(100);
     System.sleep(SS_Button, FALLING, 300);
     delay(1000);
@@ -331,27 +357,31 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
   //static const size_t bufferSize = 256;// grosseur des blocs de données à envoyer 
   //static uint8_t buffer[bufferSize] = {0xFF}; //Terminer le bloc par un 0xFF
   char DestFilename[25];
-  char buffersprint1 [50]; // Variables temporaires pour générer les noms de fichiers et 
+  //char buffersprint1 [50]; // Variables temporaires pour générer les noms de fichiers et 
   char buffersprint2 [50]; // chemins d'arborescence
   uint32_t len = 0;
 
   // Connection à l'hôte FTP avec les infos fournies
   if (!ftp.open(config.ftp_hostname, port, timeout)) {
     log("Couldn't connect to " + String(config.ftp_hostname), 2);
+    Particle.publish("status","Couldn't connect to " + String(config.ftp_hostname));
     return 0;
   }
   if (!ftp.user(username)) {
     log("Bad ftp username", 2);
+    Particle.publish("status","Bad ftp username");
     return 0;
   }
   if (!ftp.pass(password)) {
     log("Bad ftp password", 2);
+    Particle.publish("status","Bad ftp password");
     return 0;
   }
 
   // On "navigue" vers le chemin de dossier passé en paramètre (dir)
   if (!ftp.cwd(dir)){
     log("could not set directory", 3);
+    Particle.publish("status","could not set directory");
     if(!ftp.mkd(dir)){ //S'il n'existe pas on le crée
       log("ftp mkdir failed: " + dir, 2);
       return 0; // retour de la fonction en erreur si le dossier n'a pu être créé
@@ -406,12 +436,14 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
   if(retry == true) {
     if(!ftp.dele(DestFilename)){
       log("could not delete file", 2);
+      Particle.publish("Status", "could not delete file");
     }
     log("Fd", 4);
   }
 
   //On ouvre le fichier dans la carte SD, si l'opération réussie, initier le transfert
   log("Tfile: " + String(DestFilename) + " SD:" +  SDfilename, 4);
+  Particle.publish("Status", "Tfile: " + String(DestFilename) + " SD:" +  String(SDfilename));
   File SDfile = SD.open(SDfilename);
   delay(100);
   if (SDfile) {
@@ -450,6 +482,7 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
       } 
 
     //Variables temporaires pour la gestion du transfert
+    Particle.publish("Status", "Transfer begin...");
     int bytesRead = 0;
     int TotbytesRead = 0;
     int bytesWritten = 0;
@@ -502,9 +535,9 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
         }
         digitalWrite(statusLed, HIGH);
         bytesRead = 0;
-        delay(2); //
+        //delay(200); //removed since 2.0.1
         // Si on dépasse 600000 bytes, il y a un problème...
-        if (TotbytesRead > 200000) {
+        if (TotbytesRead > 600000) {
             return 0;
         }     
       }
@@ -537,6 +570,7 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
     digitalWrite(statusLed, LOW);
   }
   Particle.connect();
+  Particle.publish("Status", "Transfer done");
   return 1;
 }
 /* 
@@ -571,8 +605,9 @@ bool getConfig(String dir) {
   }
 
   // Tentative de récupération du fichier, après un retr réussi, l'info se trouve dans le buffer TCP
-  if (!ftp.retr("/AutoCamDEH/config/" + BDH + "/CONFIG.JSN")) { //HARDCODED PATH FOR SOME REASON, YOU MAY USE YOUR VARIABLE
-    log("Couldn't retrieve CONFIG.JSN", 2);
+  if (!ftp.retr(dir + configFileName)) {
+    log("Couldn't retrieve " + dir, 2);
+    Particle.publish("status", "Couldn't retrieve " + dir);
     return 0;
   } else { //l'opération a réussi, nous pouvons supprimer le fichier de configuration pour le mettre à jour
     if(!SD.remove("CONFIG.JSN")) { //S'il existe...
@@ -669,8 +704,9 @@ int grabPic(String Short_filename) {
     //Ce registre devrait indiquer 2640
     if ((vid != 0x26 ) && ( pid != 0x41 ) || ( pid != 0x42 )){
       log("Can't find OV2640 module! camera says " + String::format("%d:%d", vid, pid), 1);
+      Particle.publish("status", "Can't find OV2640 module! camera says " + String::format("%d:%d", vid, pid));
       delay(5000);
-      System.sleep(SS_Button, FALLING, 1500);
+      return 0;
     }
     else { 
       break;
@@ -735,6 +771,7 @@ int grabPic(String Short_filename) {
   // Lecture de la taille de l'image, inscription dans le log
   int length = myCAM.read_fifo_length();
   log("Is " + String(length), 4);
+  Particle.publish("status", "Is " + String(length));
 
   //Variables temporaires
   temp = 0xff, temp_last = 0;
@@ -1239,10 +1276,19 @@ void setup() {
   fuel.begin();
   pmic.enableBuck();
   Particle.process();
-  Particle.function("Grab Pic", grabPic);
+  Particle.function("Cloud_IAM", Cloud_IAM);
+  Particle.function("updateConfig", updateConfig);
+  Particle.function("ForcePic", ForcePic);
   Particle.function("CleanSD", cleanSD);
+  Particle.function("RESET_Device", Cloud_RESET);
+  Particle.variable("StationName", &stationName, STRING);
+  Particle.variable("FTP_Hostname", &hostname, STRING);
+  Particle.variable("CaptureMode", &captureMode, INT);
+  Particle.variable("FTP_Dir", &ftp_dir, STRING);
+  Particle.variable("Batt_low_SP", &Batt_low_SP, INT);
   Particle.subscribe("particle/device/ip", handler, MY_DEVICES);
   Particle.subscribe("particle/device/name", handler);  
+
   Particle.publishVitals();
   Particle.publishVitals(300);
   Time.zone(-5);
@@ -1320,391 +1366,440 @@ void setup() {
 * V1.1 2019-12-17
 */
 void loop() {
-  // Variables temporaires propre à cette boucle
-  start:
-  //Cellular.on();
-  //Particle.connect();
-  int secstoTimeout = timeout;
-  int SSButton_longpress = 0;
-  char Nametocard[13];
-  int tempfiles = 0;
-  //uint8_t buf[4];
-  Particle.process(); // on oublie pas le cloud
-  SleepResult result = System.sleepResult();
+    // Variables temporaires propre à cette boucle
+    start:
+    //Cellular.on();
+    //Particle.connect();
+    int secstoTimeout = timeout;
+    int SSButton_longpress = 0;
+    char Nametocard[13];
+    int tempfiles = 0;
+    //uint8_t buf[4];
+    Particle.process(); // on oublie pas le cloud
+    SleepResult result = System.sleepResult();
 
-  if(result.wokenUpByRtc()) {
-    log("Wu", 4);
-    delay(1000);
-    System.reset();
-  }    
-
-  if(result.wokenUpByPin()) {
-  secstoTimeout = timeout;
-  RGB.mirrorTo( NULL, statusLed, NULL);
-  Cellular.connect();
-  log("Wu SS_Button", 4);
-
-  while(!Cellular.ready()) {
-    secstoTimeout--;
-    delay(1000);
-    if(secstoTimeout <= 140) {
-      RGB.mirrorDisable();
-      pinMode(statusLed, OUTPUT);
-      delay(100);
-      log("could not connect", 4);
-      digitalWrite(statusLed, HIGH);
-      delay(5000);
-      digitalWrite(statusLed, LOW);
+    if(result.wokenUpByRtc()) {
+      log("Wu", 4);
       delay(1000);
-      System.sleep(SS_Button, FALLING, 1500);
-      delay(1000);
-      goto start;
-    }
-  }
+      System.reset();
+    }    
 
-  //standby:
-  secstoTimeout = timeout * 30;
-  SSButton_longpress = 0;
-  
-  while(SSButton_longpress <= 2000 && secstoTimeout > 0) {
-    SSButton_longpress = 0;
-    if(digitalRead(SS_Button) == LOW) {
-      while (digitalRead(SS_Button) == LOW) {
-        SSButton_longpress += 100;
-        delay(100);
-      }
-      
-      Particle.publish("status", "SSButton_longpress >= 10000, " + String(secstoTimeout));
-      CellularSignal sig = Cellular.RSSI();
-      log("Signal Query: " + String(sig.getStrengthValue()) + "dB" , 4);
-      RGB.mirrorDisable();
-      pinMode(statusLed, OUTPUT);
-      delay(100);     
-      for (size_t i = 0; i <= -(sig.getStrengthValue()/10) ; i++) {
-        digitalWrite(statusLed, LOW);
-        delay(500);
-        digitalWrite(statusLed, HIGH);
-        delay(500);
-      }
-      secstoTimeout = timeout;
-    }
-
-    RGB.mirrorTo(NULL, statusLed, NULL);
-    Particle.process();
-    delay(100);
-    secstoTimeout --;
-    wd.checkin();
-  }
-
-  if(SSButton_longpress >= 10000) {
-    RGB.mirrorDisable();
-    pinMode(statusLed, OUTPUT);
-    Particle.connect();
+    if(result.wokenUpByPin()) {
     secstoTimeout = timeout;
-    while(!Particle.connected()) {
-      digitalWrite(statusLed, LOW);
-      delay(250);
-      digitalWrite(statusLed, HIGH);
-      delay(250);
+    initSD();
+    RGB.mirrorTo( NULL, statusLed, NULL);
+    Cellular.connect();
+    log("Wu SS_Button", 4);
+
+    while(!Cellular.ready()) {
+      secstoTimeout--;
+      delay(1000);
       if(secstoTimeout <= 140) {
         RGB.mirrorDisable();
         pinMode(statusLed, OUTPUT);
         delay(100);
-        log("could not connect to cloud", 4);
+        log("could not connect", 4);
         digitalWrite(statusLed, HIGH);
         delay(5000);
         digitalWrite(statusLed, LOW);
         delay(1000);
         System.sleep(SS_Button, FALLING, 1500);
         delay(1000);
-        goto start;
-      }  
-      secstoTimeout--;  
-      wd.checkin();  
+        System.reset();
+      }
     }
-    Particle.publishVitals();
-    RGB.mirrorTo( statusLed, statusLed, statusLed);
-    goto start;
-  }
-  
-  RGB.mirrorDisable();
-  pinMode(statusLed, OUTPUT);
-  digitalWrite(statusLed,LOW);
-  delay(10);
-  //goToSleep(600);
-  delay(100);
-  goto start;
-  
-}  
-  
-  // Avant de procéder aux opération nécessitant du réseau, on attends d'être connecté
-  log("WCC", 4); 
-  unsigned long previousMillis = millis();
-  unsigned long thatTook = 0;
-  while(!Cellular.ready()){
+
+    //standby:
+    secstoTimeout = timeout * 30;
+    SSButton_longpress = 0;
+    
+    while(SSButton_longpress <= 2000 && secstoTimeout > 0) {
+      SSButton_longpress = 0;
+      if(digitalRead(SS_Button) == LOW) {
+        while (digitalRead(SS_Button) == LOW) {
+          SSButton_longpress += 100;
+          delay(100);
+        }
+        
+        Particle.publish("status", "SSButton_longpress >= 10000, " + String(secstoTimeout));
+        CellularSignal sig = Cellular.RSSI();
+        log("Signal Query: " + String(sig.getStrengthValue()) + "dB" , 4);
+        RGB.mirrorDisable();
+        pinMode(statusLed, OUTPUT);
+        delay(100);     
+        for (size_t i = 0; i <= -(sig.getStrengthValue()/10) ; i++) {
+          digitalWrite(statusLed, LOW);
+          delay(500);
+          digitalWrite(statusLed, HIGH);
+          delay(500);
+        }
+        secstoTimeout = timeout;
+      }
+
+      RGB.mirrorTo(NULL, statusLed, NULL);
+      Particle.process();
+      delay(100);
+      secstoTimeout --;
+      wd.checkin();
+    }
+
+    if(SSButton_longpress >= 10000) {
+      RGB.mirrorDisable();
+      pinMode(statusLed, OUTPUT);
+      Particle.connect();
+      secstoTimeout = timeout;
+      while(!Particle.connected()) {
+        digitalWrite(statusLed, LOW);
+        delay(250);
+        digitalWrite(statusLed, HIGH);
+        delay(250);
+        if(secstoTimeout <= 140) {
+          RGB.mirrorDisable();
+          pinMode(statusLed, OUTPUT);
+          delay(100);
+          log("could not connect to cloud", 4);
+          SD.end();
+          digitalWrite(statusLed, HIGH);
+          delay(5000);
+          digitalWrite(statusLed, LOW);
+          delay(1000);
+          System.sleep(SS_Button, FALLING, 1500);
+          delay(1000);
+          System.reset();
+        }  
+        secstoTimeout--;  
+        wd.checkin();  
+      }
+      Particle.publishVitals();
+      RGB.mirrorTo( statusLed, statusLed, statusLed);
+      SD.end();
+      delay(100);
+      System.reset();
+    }
+    
+    RGB.mirrorDisable();
+    pinMode(statusLed, OUTPUT);
+    digitalWrite(statusLed,LOW);
+    delay(10);
+    //goToSleep(600);
+    SD.end();
+    delay(100);
+    System.reset();
+    
+  }  
+    
+    // Avant de procéder aux opération nécessitant du réseau, on attends d'être connecté
+    log("WCC", 4); 
+    unsigned long previousMillis = millis();
+    unsigned long thatTook = 0;
+    while(!Cellular.ready()){
+        delay(1000);
+        Particle.process();
+        secstoTimeout--;
+        if (secstoTimeout <= 0) { // Si c'est trop long, on passe en mode offline
+          offlineMode = true;
+          log("Timeout, OM", 3);
+          break;
+        }
+      }
+    secstoTimeout = timeout;
+
+    previousMillis = millis();
+    thatTook = 0;
+    while(!Particle.connected() && !offlineMode){
       delay(1000);
       Particle.process();
       secstoTimeout--;
-      if (secstoTimeout <= 0) { // Si c'est trop long, on passe en mode offline
-        offlineMode = true;
-        log("Timeout, OM", 3);
+      if (secstoTimeout <= 170) { // Si c'est trop long, on passe en mode cloud outage
+        cloudOutage = true;
+        Particle.disconnect();
+        log("Timeout, CO", 3);
         break;
       }
     }
-  secstoTimeout = timeout;
 
-  previousMillis = millis();
-  thatTook = 0;
-  while(!Particle.connected() && !offlineMode){
-    delay(1000);
-    Particle.process();
-    secstoTimeout--;
-    if (secstoTimeout <= 170) { // Si c'est trop long, on passe en mode cloud outage
-      cloudOutage = true;
-      Particle.disconnect();
-      log("Timeout, CO", 3);
-      break;
-    }
-  }
-  
-  secstoTimeout = timeout;
-  // Décompte du temps de connection en secondes
-  thatTook =  (millis() - previousMillis)/1000;
-  log("TT " + String(thatTook), 4);
+    secstoTimeout = timeout;
+    // Décompte du temps de connection en secondes
+    thatTook =  (millis() - previousMillis)/1000;
+    log("TT " + String(thatTook), 4);
 
-  // On obtient le niveau de batterie et de signal cell pour le log
-  String SOC = String(fuel.getSoC());
-  String VCell = String(fuel.getVCell());
-  CellularSignal sig = Cellular.RSSI();
-  log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.getStrengthValue()) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
-  if (sig.getQuality() < 25) offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
+    // On obtient le niveau de batterie et de signal cell pour le log
+    String SOC = String(fuel.getSoC());
+    String VCell = String(fuel.getVCell());
+    CellularSignal sig = Cellular.RSSI();
+    log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.getStrengthValue()) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
+    if (sig.getQuality() < 25) offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
 
-  // Opérations à faire seulement si nous avons une connection réseau confirmée
-  if(!offlineMode) {
-    if(!cloudOutage) {
-      Particle.publish("particle/device/ip", PRIVATE);
-      Particle.publish("particle/device/name");
-      Particle.publish("Batt_SOC",SOC);
-      Particle.publish("RSSI",String(sig.getStrengthValue()));
+    // Opérations à faire seulement si nous avons une connection réseau confirmée
+    if(!offlineMode) {
+      if(!cloudOutage) {
+        Particle.publish("particle/device/ip", PRIVATE);
+        Particle.publish("particle/device/name");
+        Particle.publish("Batt_SOC",SOC);
+        Particle.publish("RSSI",String(sig.getStrengthValue()));
 
-      // On force un synchronisation du temps de l'horloge interne avec le cloud
-      Particle.syncTime();
-      while(!Particle.syncTimeDone() && secstoTimeout >= 170) {
-        delay(500);
-        secstoTimeout--;
-      }
+        // On force un synchronisation du temps de l'horloge interne avec le cloud
+        Particle.syncTime();
+        while(!Particle.syncTimeDone() && secstoTimeout >= 170) {
+          delay(500);
+          secstoTimeout--;
+        }
 
-      // Si on a reçu confirmation avant la fin du timeout, on synchronise l'horloge interne avec la RTC
-      if(secstoTimeout >= 170 && Time.isValid()) {
-        rtc.adjust(DateTime(Time.year(), Time.month(), Time.day(), Time.hour(), Time.minute(), Time.second()));
-        Particle.syncTimeDone();
-        Particle.publish("Status","Time Synced!");
-        log("TSync", 4);
-      } else {
-        log("Time Sync failed!", 2);
-      }
-      secstoTimeout = timeout;
+        // Si on a reçu confirmation avant la fin du timeout, on synchronise l'horloge interne avec la RTC
+        if(secstoTimeout >= 170 && Time.isValid()) {
+          rtc.adjust(DateTime(Time.year(), Time.month(), Time.day(), Time.hour(), Time.minute(), Time.second()));
+          Particle.syncTimeDone();
+          Particle.publish("Status","Time Synced!");
+          log("TSync", 4);
+        } else {
+          log("Time Sync failed!", 2);
+        }
+        secstoTimeout = timeout;
 
-      // On attends de recevoir les infos du cloud
-      while(stationName == "undef" && secstoTimeout > 0){
-        delay(1000);
-        secstoTimeout--;
-      }
-      secstoTimeout = timeout;
-    }
-
-    getConfig("/AutoCamDEH/config/" + BDH + "/");
-
-    // On sauvegarde la nouvelle configuration
-    saveConfiguration(configFileName,config);
-  }
-
-  // On prélève l'heure actuelle et on l'affiche sur le port série
-  now = rtc.now();
-  Serial.print(String(now.year()));
-  Serial.print('/');
-  Serial.print(String(now.month()));
-  Serial.print('/');
-  Serial.print(String(now.day()));
-  Serial.print(' ');
-  Serial.print(String(now.hour()));
-  Serial.print(':');
-  Serial.print(String(now.minute()));
-  Serial.print(':');
-  Serial.print(String(now.second()));
-  Serial.println();
-  char buffer[40];
-  char buffer2[40];
-
-  if (now.day() == 1 && now.hour() == 15) {
-    cleanSD("");
-  }
-
-  // On génère le nopm du fichier à partir de l'heure actuelle, on force 2 caractères par entrée
-  // exemple: 02 au lieu de 2
-  sprintf(Nametocard,"%02d%02d%02d%02d.jpg", now.day(),now.hour(), now.minute(), now.second());
-  //Nametocard = buffer;
-  Serial.println("grabpic Nametocard: " + String(Nametocard));
-
-  // On déclanche la prise de photo avec le nom généré précédemment
-  if(!grabPic(String(Nametocard))){
-    log("GrabPic failed, name of file: " + String(Nametocard), 1);
-    delay(5000);
-    goToSleep(300);
-    goto start;
-  }   
-
-  if((fuel.getVCell()*100) < Batt_low_SP) {
-    log("Battery Low, waiting for recharge: " + String(fuel.getVCell()) + " V", 1);
-    digitalWrite(Cam_on, LOW);
-    delay(1000);
-    goToSleep(3600);
-    delay(1000);
-    goto start;
-  }
-
-  // On déclenche la synchronisation FTP de l'image (à désactiver en cas de mode offline) 
-  // 3 essais avant d'abandonner, 5 secondes entre les essais
-  if(!offlineMode){
-    int attempts = 0;
-    Serial.println("beforesync Nametocard: " + String(Nametocard));
-    if(!syncFTP(Nametocard, false,ftp_dir, 0)){
-        log("Isync fail", 2);
-        while(!Cellular.ready()){
+        // On attends de recevoir les infos du cloud
+        while(stationName == "undef" && secstoTimeout > 0){
           delay(1000);
+          secstoTimeout--;
         }
-        while(!syncFTP(Nametocard, true,ftp_dir, 0) && attempts < 1){
-          log("Isync fail again", 2);
-          Particle.process();
-          attempts++;
-          while(Cellular.connecting()) {
-            delay(500);
-          }
-        }
-      } else {
-        log("ISuc", 4);
-      }   
-
-    attempts = 0;
-    // On déclanche la synchronisation FTP du Log (à désactiver en cas de mode offline), 3 essais...
-    sprintf(buffer,"%s%d%s",monthOfTheYear[now.month()-1],now.year(), ".txt");
-    if(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1)){
-        log("Lsync fail", 2);
-        delay(5000);
-        while(!Cellular.ready());
-        while(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1) && attempts < 1){
-          log("Lsync fail again", 2);
-          attempts++;
-          while(!Cellular.ready());
-        }
-      } else {
-        log("LSuc", 4);
-        attempts = 0;
-      }   
-    sprintf(buffer,"%s/%d/%d/TEMP/",stationName.c_str(),now.year(), now.month());
-    Serial.println("looking for: " + String(buffer));
-    if(SD.exists(buffer)) {
-      Serial.println("folder temp exists");
-      root = SD.open(buffer);
-      File BuPic = root.openNextFile();
-      while(BuPic && !BuPic.isDirectory()){
-        tempfiles += 1;
-        BuPic.getName(Nametocard,13) ;
-        Serial.println("Name of offline pic: " + String(Nametocard));
-        BuPic.close();
-        while(!syncFTP(Nametocard,false,ftp_dir,2) && attempts < 1) {
-          attempts++;
-          while(!Cellular.ready());
-        }
-        sprintf(buffer2,"%s/%d/%d/",stationName.c_str(),now.year(), now.month());
-        SD.rename(buffer + String(Nametocard),buffer2 +  String(Nametocard));
-        //SD.remove(buffer + String(Nametocard));
-        BuPic = root.openNextFile();
+        secstoTimeout = timeout;
       }
-      root.close();
-      SD.rmdir(buffer);
-      log("OFL Pic dump Done,Nb of files: " + String(tempfiles), 4);
-      tempfiles = 0;
-    } else {
 
-      Serial.println("No OFL files");
+      getConfig("/AutoCamDEH/config/" + BDH + "/");
+
+      // On sauvegarde la nouvelle configuration
+      saveConfiguration(configFileName,config);
     }
-    Particle.publish("status", "Sleeping");
-  }   
 
+    // On prélève l'heure actuelle et on l'affiche sur le port série
+    now = rtc.now();
+    Serial.print(String(now.year()));
+    Serial.print('/');
+    Serial.print(String(now.month()));
+    Serial.print('/');
+    Serial.print(String(now.day()));
+    Serial.print(' ');
+    Serial.print(String(now.hour()));
+    Serial.print(':');
+    Serial.print(String(now.minute()));
+    Serial.print(':');
+    Serial.print(String(now.second()));
+    Serial.println();
+    char buffer[40];
+    char buffer2[40];
+
+    if (now.day() == 1 && now.hour() == 15) {
+      cleanSD("");
+    }
+
+    if(IAM_Mode == true) {
+      IAM(); //Mode interactif si on en a eu la commande du cloud
+      Particle.process();
+      if(CloudReset) {
+        SD.end();
+        delay(5000);
+        System.reset();
+      }
+    }
+
+    // On génère le nopm du fichier à partir de l'heure actuelle, on force 2 caractères par entrée
+    // exemple: 02 au lieu de 2
+    sprintf(Nametocard,"%02d%02d%02d%02d.jpg", now.day(),now.hour(), now.minute(), now.second());
+    //Nametocard = buffer;
+    Serial.println("grabpic Nametocard: " + String(Nametocard));
+
+    // On déclanche la prise de photo avec le nom généré précédemment
+    if(!grabPic(String(Nametocard))){
+      log("GrabPic failed, name of file: " + String(Nametocard), 1);
+      delay(5000);
+      goToSleep(1800);
+      goto start;
+    }   
+
+    if((fuel.getVCell()*100) < Batt_low_SP) {
+      log("Battery Low, waiting for recharge: " + String(fuel.getVCell()) + " V", 1);
+      digitalWrite(Cam_on, LOW);
+      delay(1000);
+      Particle.publishVitals();
+      SD.end();
+      goToSleep(3600);
+      delay(1000);
+      System.reset();
+    }
+
+    // On déclenche la synchronisation FTP de l'image (à désactiver en cas de mode offline) 
+    // 3 essais avant d'abandonner, 5 secondes entre les essais
+    if(!offlineMode){
+    if(IAM_Mode == true) {
+      IAM(); //Mode interactif si on en a eu la commande du cloud
+      Particle.process();
+      if(CloudReset) {
+        SD.end();
+        delay(5000);
+        System.reset();
+      }
+    }   
+      int attempts = 0;
+      Serial.println("beforesync Nametocard: " + String(Nametocard));
+      if(!syncFTP(Nametocard, false,ftp_dir, 0)){
+          log("Isync fail", 2);
+          Particle.publish("status", "Isync fail");
+          while(!Cellular.ready()){
+            delay(1000);
+          }
+          while(!syncFTP(Nametocard, true,ftp_dir, 0) && attempts < 1){
+            log("Isync fail again", 2);
+            Particle.publish("status", "Isync fail");
+            Particle.process();
+            attempts++;
+            while(Cellular.connecting()) {
+              delay(500);
+            }
+          }
+        } else {
+          log("ISuc", 4);
+        }   
+      if(IAM_Mode == true) {
+        IAM(); //Mode interactif si on en a eu la commande du cloud
+        Particle.process();
+        if(CloudReset) {
+          SD.end();
+          delay(5000);
+          System.reset();
+        }
+      }
+
+      attempts = 0;
+      // On déclanche la synchronisation FTP du Log (à désactiver en cas de mode offline), 3 essais...
+      sprintf(buffer,"%s%d%s",monthOfTheYear[now.month()-1],now.year(), ".txt");
+      if(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1)){
+          log("Lsync fail", 2);
+          Particle.publish("status", "Lsync fail");
+          delay(5000);
+          while(!Cellular.ready());
+          while(!syncFTP(buffer, true,"/AutoCamDEH/config/" + BDH, 1) && attempts < 1){
+            log("Lsync fail again", 2);
+            Particle.publish("status", "Lsync fail");
+            attempts++;
+            while(!Cellular.ready());
+          }
+        } else {
+          log("LSuc", 4);
+          attempts = 0;
+        }   
+      sprintf(buffer,"%s/%d/%d/TEMP/",stationName.c_str(),now.year(), now.month());
+      Serial.println("looking for: " + String(buffer));
+      if(SD.exists(buffer)) {
+        Serial.println("folder temp exists");
+        root = SD.open(buffer);
+        File BuPic = root.openNextFile();
+        while(BuPic && !BuPic.isDirectory()){
+          tempfiles += 1;
+          BuPic.getName(Nametocard,13) ;
+          Serial.println("Name of offline pic: " + String(Nametocard));
+          BuPic.close();
+          while(!syncFTP(Nametocard,false,ftp_dir,2) && attempts < 1) {
+            attempts++;
+            while(!Cellular.ready());
+          }
+          sprintf(buffer2,"%s/%d/%d/",stationName.c_str(),now.year(), now.month());
+          SD.rename(buffer + String(Nametocard),buffer2 +  String(Nametocard));
+          //SD.remove(buffer + String(Nametocard));
+          BuPic = root.openNextFile();
+        }
+        root.close();
+        SD.rmdir(buffer);
+        log("OFL Pic dump Done,Nb of files: " + String(tempfiles), 4);
+        Particle.publish("status", "OFL Pic dump Done,Nb of files: " + String(tempfiles));
+        tempfiles = 0;
+      } else {
+
+        Serial.println("No OFL files");
+      }
+      if(IAM_Mode == true) {
+        IAM(); //Mode interactif si on en a eu la commande du cloud
+        Particle.process();
+        if(CloudReset) {
+          SD.end();
+          delay(5000);
+          System.reset();
+        }
+      }  
+      Particle.publish("status", "Sleeping");
+    }   
+
+    
+    // prélèvement de l'heure actuelle pour calculer le nombre de secondes pour "dormir"
+    now = rtc.now();
+    rtc.clear_rtc_interrupt_flags();
+    int secsToWakeup = 0;
+
+
+    // 3 modes d'acquisitions
+    
+    switch (captureMode)
+    {
+    case 0: //3 img/jour
+      if(7 <= now.hour() && now.hour() < 11) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 11, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        }
+      else if(11 <= now.hour() && now.hour() < 15) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 15, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        }
+      else if(15 <= now.hour()) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day()+1, 7, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        }
+      else if(now.hour() < 7) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 7, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        }      
+      break;
+
+    case 1: //12 img/jour
+      if(7 <= now.hour() && now.hour() < 18) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), now.hour()+1, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        } 
+      else if (18 >= now.hour()) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day()+1, 7, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        } 
+      else if(now.hour() < 7) {
+          DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 7, 0, 0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();
+        }
   
-  // prélèvement de l'heure actuelle pour calculer le nombre de secondes pour "dormir"
-  now = rtc.now();
-  rtc.clear_rtc_interrupt_flags();
-  int secsToWakeup = 0;
+      break; 
+    case 2: //24 img/jour
+          DateTime wakeupTime(DateTime(now.year(),now.month(),now.day(),now.hour(),0,0) + TimeSpan(0,1,0,0));
+          secsToWakeup = wakeupTime.secondstime() - now.secondstime();    
+      break;   
 
-
-  // 3 modes d'acquisitions
+    }
+    /* // Envoi de la configuration d'alarme sur la RTC... non fonctionelle ACJ
+    rtc.set_alarm(wakeupTime.day(),wakeupTime.hour(),wakeupTime.minute());
+    delay(100);
+    rtc.get_alarm(buf);
+    Serial.print("Alarm set at: ");
+    Serial.print(buf[0]);
+    Serial.print(" minute, ");
+    Serial.print(buf[1]);
+    Serial.print(" hour, ");
+    Serial.print(buf[2]);      
+    Serial.println(" day, ");  
+    */     
   
-  switch (captureMode)
-  {
-  case 0: //3 img/jour
-    if(7 <= now.hour() && now.hour() < 11) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 11, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      }
-    else if(11 <= now.hour() && now.hour() < 15) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 15, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      }
-    else if(15 <= now.hour()) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day()+1, 7, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      }
-    else if(now.hour() < 7) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 7, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      }      
-    break;
 
-  case 1: //12 img/jour
-    if(7 <= now.hour() && now.hour() < 18) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), now.hour()+1, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      } 
-    else if (18 >= now.hour()) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day()+1, 7, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      } 
-    else if(now.hour() < 7) {
-        DateTime wakeupTime(DateTime(now.year(), now.month(), now.day(), 7, 0, 0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();
-      }
- 
-    break; 
-  case 2: //24 img/jour
-        DateTime wakeupTime(DateTime(now.year(),now.month(),now.day(),now.hour(),0,0) + TimeSpan(0,1,0,0));
-        secsToWakeup = wakeupTime.secondstime() - now.secondstime();    
-    break;   
-
-  }
-  /* // Envoi de la configuration d'alarme sur la RTC... non fonctionelle ACJ
-  rtc.set_alarm(wakeupTime.day(),wakeupTime.hour(),wakeupTime.minute());
-  delay(100);
-  rtc.get_alarm(buf);
-  Serial.print("Alarm set at: ");
-  Serial.print(buf[0]);
-  Serial.print(" minute, ");
-  Serial.print(buf[1]);
-  Serial.print(" hour, ");
-  Serial.print(buf[2]);      
-  Serial.println(" day, ");  
-  */     
- 
-
-  log("S " + String(secsToWakeup), 4);
-  // On dort pour le nombre prédéterminé de secondes. 
-  // On peut aussi le repartir avec un front descendant sur la pin D8, 
-  // possible ajout d'un bouton de prise d'Image?
-  goToSleep(secsToWakeup);
-  //goToSleep(30);
-  //System.sleep(SLEEP_MODE_DEEP);
-  //System.reset();
+    log("S " + String(secsToWakeup), 4);
+    // On dort pour le nombre prédéterminé de secondes. 
+    // On peut aussi le repartir avec un front descendant sur la pin D8, 
+    // possible ajout d'un bouton de prise d'Image?
+    goToSleep(secsToWakeup);
+    //goToSleep(30);
+    //System.sleep(SLEEP_MODE_DEEP);
+    //System.reset();
 }
 
 /* 
@@ -1712,6 +1807,7 @@ void loop() {
 * V1.2 2020-03-18, ajout de BLE.off()
 */
 void goToSleep(long TbeforeWake) {
+  Particle.publish("status", "Going to sleep for: " + String(TbeforeWake));
   digitalWrite(statusLed, LOW);
   fuel.sleep();
   SD.end();
@@ -1728,3 +1824,115 @@ void goToSleep(long TbeforeWake) {
 inline void softDelay(uint32_t t) {
   for (uint32_t ms = millis(); millis() - ms < t; Particle.process());  //  safer than a delay()
 }
+
+int Cloud_IAM(String EnIAM)  {
+  IAM_Mode = EnIAM.toInt();
+  Particle.publish("Status", "Received IAM Command...");
+  return IAM_Mode;
+}
+
+void IAM() {
+  int16_t SecsToTimeout = 900;
+  Particle.publish("Status", "Interactive Mode");
+  while (IAM_Mode && SecsToTimeout > 0)
+  {
+    delay(1000);
+    SecsToTimeout--;
+    Particle.process();
+    if(SecsToTimeout % 20 == 0) Particle.publish("Status", "Interactive Mode");
+  }
+    IAM_Mode = false;
+    Particle.publish("Status", "IAM Off");
+}
+
+int updateConfig(String Config_Command){
+  Particle.publish("Status", "Received Config command: " + Config_Command);
+  char * buffer = new char[Config_Command.length() + 1];
+  strcpy(buffer,Config_Command.c_str());
+  Serial.println("buffer: " + String(buffer));
+  char *ptr = strtok(buffer, ":");
+  Serial.println("ptr: " + String(ptr));
+  bool cmdOk = false;
+  //Nom des commandes
+  String Cloud_ConfigStr[9] = {"FTP_Hostname", "FTP_User", "FTP_Pass", "StationName", "CaptureMode", "FTP_Dir", "Batt_low_SP", "GetConfig", "GetRSSI"};
+  String Cloud_ConfigVal[9] = {"", "", "", "", "", "", "", ""};
+
+  for (size_t i = 0; i < 9; i++)
+  {
+    if(!Cloud_ConfigStr[i].compareTo(ptr)) {
+      ptr = strtok(NULL, ":");
+      Cloud_ConfigVal[i] = ptr;
+      Serial.println("ptr: " + String(ptr));
+      Particle.publish("status", "Parameter " + Cloud_ConfigStr[i] + " Configured at " + Cloud_ConfigVal[i]);
+      cmdOk = true;
+    }
+  }
+  if(Cloud_ConfigVal[0].compareTo("")) {
+      hostname = ptr;
+    }
+  if(Cloud_ConfigVal[1].compareTo("")) {
+      username = ptr;
+    }  
+  if(Cloud_ConfigVal[2].compareTo("")) {
+      password = ptr;
+    }
+  if(Cloud_ConfigVal[3].compareTo("")) {
+      stationName = ptr;
+    }
+   if(Cloud_ConfigVal[4].compareTo("")) {
+      captureMode = String(ptr).toInt();
+    }
+   if(Cloud_ConfigVal[5].compareTo("")) {
+      ftp_dir = ptr;
+    }
+   if(Cloud_ConfigVal[6].compareTo("")) {
+      Batt_low_SP = String(ptr).toInt();
+    }
+   if(Cloud_ConfigVal[7].compareTo("")) {
+      getConfig("/AutoCamDEH/config/" + BDH + "/");
+    }    
+   if(Cloud_ConfigVal[8].compareTo("")) {
+      CellularSignal sig = Cellular.RSSI();
+      Particle.publish("Status", "CellRSSI: " + String(sig.getStrengthValue()));
+    }      
+  if(!cmdOk) {
+      Particle.publish("Status", "Unrecognized command");
+      return -1;
+    } else {  Particle.publish("Status", "Done");
+  }
+  return 1;
+}
+
+int ForcePic(String PicName) {
+  PicName += ".jpg";
+  Particle.publish("Status", "Taking Picture: " + PicName);
+  int attempts = 0;
+  grabPic(PicName);
+  char CharPic[13];
+  sprintf(CharPic,"%s",PicName.c_str());
+  if(!syncFTP(CharPic, false,ftp_dir, 0)){
+    log("Isync fail", 2);
+    Particle.publish("status", "Isync fail");
+    while(!Cellular.ready()){
+      delay(1000);
+    }
+    while(!syncFTP(CharPic, true,ftp_dir, 0) && attempts < 1){
+      log("Isync fail again", 2);
+      Particle.publish("status", "Isync fail");
+      Particle.process();
+      attempts++;
+      while(Cellular.connecting()) {
+        delay(500);
+      }
+    }
+  } else {
+    log("ISuc", 4);
+  }
+  return 1;
+}
+
+int Cloud_RESET(String dummy) {
+    CloudReset = true;
+    Particle.publish("Status", "Device will reset after exiting IAM");
+    return 1;
+  }
