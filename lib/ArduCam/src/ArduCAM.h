@@ -92,6 +92,11 @@
 	2017/01/22  V4.0.2  by Lee	Add support for OV3640 camera.
 --------------------------------------*/
 
+
+#if PLATFORM_ID != 13 // Boron
+    #error "This library only works on the Boron"
+#endif
+
 #ifndef ArduCAM_H
 #define ArduCAM_H
 #include "memorysaver.h"

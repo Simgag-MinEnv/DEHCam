@@ -45,7 +45,7 @@ int Batt_low_SP = 330;
 String IAM_Command = "";
 String IAM_CmdValue = "";
 
-#define VERSION_SLUG "V2.0.0-RC3"
+#define VERSION_SLUG "V2.0.0-RC4"
 
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
