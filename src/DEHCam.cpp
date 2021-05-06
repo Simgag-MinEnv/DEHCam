@@ -1307,8 +1307,6 @@ void setup() {
   Particle.variable("Batt_low_SP", &Batt_low_SP, INT);
   Particle.subscribe("particle/device/ip", handler, MY_DEVICES);
   Particle.subscribe("particle/device/name", handler);  
-
-  Particle.publishVitals();
   Particle.publishVitals(300);
   Time.zone(-5);
   // On initalise les GPIO 
@@ -1533,6 +1531,7 @@ void loop() {
         Particle.publish("particle/device/name");
         Particle.publish("Batt_SOC",SOC);
         Particle.publish("RSSI",String(sig.getStrengthValue()));
+        Particle.publishVitals();
 
         // On force un synchronisation du temps de l'horloge interne avec le cloud
         Particle.syncTime();
