@@ -25,7 +25,7 @@ int ForcePic(String PicName);
 int Cloud_RESET(String dummy);
 #line 1 "c:/Users/gagsi01/Documents/GitHub/DEHCam/src/DEHCam.ino"
 PRODUCT_ID(14006)
-PRODUCT_VERSION(5)
+PRODUCT_VERSION(6)
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -71,8 +71,7 @@ int Batt_low_SP = 330;
 String IAM_Command = "";
 String IAM_CmdValue = "";
 
-#define VERSION_SLUG "V2.1.0-RC1"
-
+#define VERSION_SLUG "V2.1.0-RC2"
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
 int tx_buffer_index = 0;
@@ -100,7 +99,7 @@ File root;
 */
 struct Config {
   char BDH[8] = "00000";
-  char stationName[20] =  "UNDEF";
+  char stationName[7] =  "UNDEF";
   char PublicIP[20] = "0.0.0.0";
   int captureMode = 0;  //0:3 img/jour, 1:12 img/jour (7-18), 2:24 img/jour
   int Batt_low_SP = 20;
@@ -285,7 +284,8 @@ void saveConfiguration(const char *filename, const Config &config) {
 
   // Sérialisation
   if (serializeJson(doc, file) == 0) {
-    log("Failed to write to file", 2);
+    log("Failed to write to config file", 2);
+    Particle.publish("Satus","Failed to write to config file");
   }
 
   // On ferme le fichier sans quoi les données ne seront pas enregistrées
@@ -492,7 +492,7 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
     //Variables temporaires pour la gestion du transfert
     Particle.publish("Status", "Transfer begin...");
     int bytesRead = 0;
-    int TotbytesRead = 0;
+    uint32_t  TotbytesRead = 0;
     int bytesWritten = 0;
     //int intdelay = 200;
     unsigned long previousMillis = millis();
@@ -710,7 +710,7 @@ int grabPic(String Short_filename) {
     myCAM.rdSensorReg8_8(OV2640_CHIPID_LOW, &pid);
 
     //Ce registre devrait indiquer 2640
-    if ((vid != 0x26 ) && ( pid != 0x41 ) || ( pid != 0x42 )){
+    if (((vid != 0x26 ) && ( pid != 0x41 )) || ( pid != 0x42 )){
       log("Can't find OV2640 module! camera says " + String::format("%d:%d", vid, pid), 1);
       Particle.publish("status", "Can't find OV2640 module! camera says " + String::format("%d:%d", vid, pid));
       delay(5000);
@@ -1032,7 +1032,10 @@ Serial.println(" Exif seg8...");
     digitalWrite(Cam_on, LOW);
 
     return 1;
-  }
+  } else {
+    return 0;
+  }  
+return 1;
 }
 
 /* 
@@ -1478,7 +1481,8 @@ void loop() {
   }  
     
     // Avant de procéder aux opération nécessitant du réseau, on attends d'être connecté
-    log("WCC", 4); 
+    log("WCC", 4);
+    secstoTimeout = timeout; 
     unsigned long previousMillis = millis();
     unsigned long thatTook = 0;
     while(!Cellular.ready()){
@@ -1492,8 +1496,11 @@ void loop() {
         }
       }
     secstoTimeout = timeout;
+    
+    // Décompte du temps de connection en secondes
+    thatTook =  (millis() - previousMillis)/1000;
+    log("TT " + String(thatTook), 4);    
 
-    previousMillis = millis();
     thatTook = 0;
     while(!Particle.connected() && !offlineMode){
       delay(1000);
@@ -1506,19 +1513,19 @@ void loop() {
         break;
       }
     }
-
+    delay(200);
     secstoTimeout = timeout;
-    // Décompte du temps de connection en secondes
-    thatTook =  (millis() - previousMillis)/1000;
-    log("TT " + String(thatTook), 4);
 
     // On obtient le niveau de batterie et de signal cell pour le log
     String SOC = String(fuel.getSoC());
     String VCell = String(fuel.getVCell());
     CellularSignal sig = Cellular.RSSI();
     log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.getStrengthValue()) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
-    if (sig.getQuality() < 25) offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
-
+    if (sig.getQuality() < 10) { 
+      offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
+      log("Poor Cell Qual, OM", 3);
+      Particle.publish("Status", "Poor Cell SNR, OM");
+    }
     // Opérations à faire seulement si nous avons une connection réseau confirmée
     if(!offlineMode) {
       if(!cloudOutage) {
@@ -1858,24 +1865,31 @@ int updateConfig(String Config_Command){
   }
   if(Cloud_ConfigVal[0].compareTo("")) {
       hostname = ptr;
+      saveConfiguration(configFileName,config);
     }
   if(Cloud_ConfigVal[1].compareTo("")) {
       username = ptr;
+      saveConfiguration(configFileName,config);
     }  
   if(Cloud_ConfigVal[2].compareTo("")) {
       password = ptr;
+      saveConfiguration(configFileName,config);
     }
   if(Cloud_ConfigVal[3].compareTo("")) {
       stationName = ptr;
+      saveConfiguration(configFileName,config);
     }
    if(Cloud_ConfigVal[4].compareTo("")) {
       captureMode = String(ptr).toInt();
+      saveConfiguration(configFileName,config);
     }
    if(Cloud_ConfigVal[5].compareTo("")) {
       ftp_dir = ptr;
+      saveConfiguration(configFileName,config);
     }
    if(Cloud_ConfigVal[6].compareTo("")) {
       Batt_low_SP = String(ptr).toInt();
+      saveConfiguration(configFileName,config);
     }
    if(Cloud_ConfigVal[7].compareTo("")) {
       getConfig("/AutoCamDEH/config/" + BDH + "/");
