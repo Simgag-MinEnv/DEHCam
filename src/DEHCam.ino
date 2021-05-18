@@ -1,5 +1,5 @@
 PRODUCT_ID(14006)
-PRODUCT_VERSION(6)
+PRODUCT_VERSION(7)
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -45,7 +45,7 @@ int Batt_low_SP = 330;
 String IAM_Command = "";
 String IAM_CmdValue = "";
 
-#define VERSION_SLUG "V2.1.0-RC2"
+#define VERSION_SLUG "V2.1.0"
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
 int tx_buffer_index = 0;
@@ -143,7 +143,7 @@ Config config; //Déclaration de l'objet struct de configuration nommé "config"
 
 ////////////////////////Fin du Template EXIF////////////////////////////////////
 
-///////////////////////////FIN DES DECALARATIONS//////////////////////////////////////////////////
+///////////////////////////FIN DES DECLARATIONS//////////////////////////////////////////////////
 // The STARTUP call is placed outside of any other function
 // What goes inside is any valid code that can be executed. Here, we use a function call.
 // Using a single function is preferable to having several `STARTUP()` calls.
@@ -1358,7 +1358,6 @@ void setup() {
 */
 void loop() {
     // Variables temporaires propre à cette boucle
-    start:
     //Cellular.on();
     //Particle.connect();
     int secstoTimeout = timeout;
@@ -1581,7 +1580,7 @@ void loop() {
       log("GrabPic failed, name of file: " + String(Nametocard), 1);
       delay(5000);
       goToSleep(1800);
-      goto start;
+      System.reset();
     }   
 
     if((fuel.getVCell()*100) < Batt_low_SP) {
