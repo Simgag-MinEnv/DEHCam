@@ -2,7 +2,7 @@
     "particle.firmwareVersion": "2.1.0",
     "particle.targetPlatform": "boron",
     "cortex-debug.openocdPath": "${command:particle.getDebuggerOpenocdPath}",
-    "particle.targetDevice": "45897",
+    "particle.targetDevice": "46082",
     "C_Cpp.default.configurationProvider": "particle.particle-vscode-core",
     "files.associations": {
         "array": "cpp",

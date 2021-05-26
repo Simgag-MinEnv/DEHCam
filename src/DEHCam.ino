@@ -1,5 +1,5 @@
 PRODUCT_ID(14006)
-PRODUCT_VERSION(7)
+PRODUCT_VERSION(8)
 SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
@@ -7,6 +7,7 @@ SYSTEM_THREAD(ENABLED);
 #include "memorysaver.h"
 #include "ParticleFTPClient.h"
 #include "SdFat.h"
+#include "sdios.h"
 #include "DS18B20.h"
 #include "PCF8523.h"
 #include "ArduinoJson.h"
@@ -45,7 +46,7 @@ int Batt_low_SP = 330;
 String IAM_Command = "";
 String IAM_CmdValue = "";
 
-#define VERSION_SLUG "V2.1.0"
+#define VERSION_SLUG "V2.1.1"
 #define TX_BUFFER_MAX 256
 uint8_t buffer[TX_BUFFER_MAX + 1];
 int tx_buffer_index = 0;
@@ -399,10 +400,12 @@ bool syncFTP(char SDfilename[], bool retry, String dir, int Ttype) {
       //Nom de l'image à destination
       sprintf(DestFilename,"%s_%d%d%s",config.stationName, now.year(),now.month(),SDfilename);
       //DestFilename = buffersprint1;
+      Serial.println("T2DESTFILENAME: " + String(DestFilename));
 
       //nom et chemin de l'image sur la carte SD 
-      sprintf(SDfilename,"/%s/%d/%d/TEMP/%s",config.stationName,now.year(), now.month(),SDfilename);
-      //SDfilename = buffersprint2;
+      sprintf(buffersprint2,"/%s/%d/%d/TEMP/%s",config.stationName,now.year(), now.month(),SDfilename);
+      SDfilename = buffersprint2;
+      Serial.println("T2SDFILENAME: " + String(SDfilename));
     }
 
  
@@ -1179,81 +1182,122 @@ void printNclearSDlogBuffer() {
 * Fonction concierge pour éviter le trop plein de données
 *
 */
-int cleanSD(String Dummy) { //you may only call a function with a parameter from particle cloud hence dummy parameter
-  int FolderRmvd = 0;
-  int FileRmvd = 0;
-  Particle.publish("status", "Cleaning old photos on SD...");
-  log("clSD", 4);
-  File root = SD.open(stationName + "/");
-  File entry = root.openNextFile();
-  int nowyear = now.year();
+int cleanSD(String option) { //option 0: remove images and logs older than two years, 1: remove all files and folders except CONFIG.JSN, 2: same as 0 but also delete TEMP folder(s)
+    int FolderRmvd = 0;
+    int FileRmvd = 0;
+    bool cleanall = 0;
+    char entryname[13];
+    char entryname1[13];
+    char entryname2[13];
 
-  while (entry) {
-    String entryname = entry.name();
-    Serial.println(String(entryname.toInt()));
-    if (entry.isDirectory()) {
-      if(entryname.toInt() != nowyear && entryname.toInt() != nowyear-1){
-          File entry1 = entry.openNextFile();
-          Serial.println(entry1.name());
-          while(entry1){
-            if(entry1.isDirectory()){
-              File entry2 = entry1.openNextFile();
-              Serial.println(entry2.name());
-              while(entry2) {
-                if(!SD.remove(stationName + "/" + entry.name() + "/" + entry1.name() + "/" + entry2.name())){
-                    //Serial.println("removal of " + stationName + "/" + entry.name() + "/" + entry1.name() + "/" + entry2.name() + " failed");
-                  } else {
-                    //Serial.println("removal of " + stationName + "/" + entry.name() + "/" + entry1.name() + "/" + entry2.name() + " Succeed");
-                    FileRmvd++;
-                    }
-                entry2.close();                  
-                entry2 = entry1.openNextFile();
-                //Serial.println(entry2.name());
-              }
-              SD.rmdir(stationName + "/" + entry.name() + "/" + entry1.name());
-              FolderRmvd++;
-            }
-            entry1.close();
-            entry1 = entry.openNextFile();
-            //Serial.println(entry1.name());
-          }
-          SD.rmdir(stationName + "/" + entry.name());
-          FolderRmvd++;
-        }
+    if(!option.compareTo("1")) {  //Attention compareTo retourne "0" si les deux string sont égales
+      cleanall = 1;
+      Particle.publish("status", "Cleaning all files on SD...");
+    } else {
+      cleanall = 0;
+      Particle.publish("status", "Cleaning all files older than 2 years on SD...");
     }
-    entry.close();
-    entry =  root.openNextFile();
-  }
-  root.close();
-  Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));
-  log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
-
-
-
-  // retirer les logs qui datent de plus d'un an
-  
-  FolderRmvd = 0;
-  FileRmvd = 0;
-  Particle.publish("status", "Cleaning old logs on SD...");
-  log("clL", 4);
-  root = SD.open("LOGS/");
-  entry = root.openNextFile();
-  while (entry) {
-    String entryname = entry.name();
-    if(entryname.endsWith(String(nowyear-2))){
-        if(!SD.remove("LOGS/" + String(entry.name()))){
-          Serial.println("failed");
-        } else {
-          FileRmvd++;
+    log("clSD", 4);
+    File root = SD.open(stationName + "/");
+    File entry = root.openNextFile();
+    int nowyear = now.year();
+    while (entry) {
+      entry.getName(entryname, 13);
+      Serial.println(entryname);
+      if (entry.isDirectory()) {
+        if(cleanall == 1 || (String(entryname).toInt() != nowyear && String(entryname).toInt() != nowyear-1)){
+            File entry1 = entry.openNextFile();
+            entry1.getName(entryname1, 13);
+            Serial.println(entryname1);
+            while(entry1){
+              if(entry1.isDirectory()){
+                File entry2 = entry1.openNextFile();
+                entry2.getName(entryname2, 13);
+                Serial.println(entryname2);
+                while(entry2) {
+                  if(!SD.remove(stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2)){
+                      //Serial.println("removal of " + stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2 + " failed");
+                    } else {
+                      //Serial.println("removal of " + stationName + "/" + entryname + "/" +entryname1 + "/" + entryname2 + " Succeed");
+                      FileRmvd++;
+                      }
+                  entry2.close();                  
+                  entry2 = entry1.openNextFile();
+                  entry2.getName(entryname2, 13);
+                  //Serial.println(entry2.name());
+                }
+                SD.rmdir(stationName + "/" + entryname + "/" + entryname1);
+                FolderRmvd++;
+              }
+              entry1.close();
+              entry1 = entry.openNextFile();
+              //Serial.println(entry1.name());
+            }
+            SD.rmdir(stationName + "/" + entryname);
+            FolderRmvd++;
           }
-        }
-    entry.close();
-    entry =  root.openNextFile();
-  }
-  root.close();
-  Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));  
-  log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
-  return 1;
+      }
+        if(String(entryname).compareTo("TEMP") && !option.compareTo("2")) {
+            File entry1 = entry.openNextFile();
+            entry1.getName(entryname1, 13);
+            Serial.println(entryname1);
+            while(entry1){
+              if(entry1.isDirectory()){
+                File entry2 = entry1.openNextFile();
+                entry2.getName(entryname2, 13);
+                Serial.println(entryname2);
+                while(entry2) {
+                  if(!SD.remove(stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2)){
+                      //Serial.println("removal of " + stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2 + " failed");
+                    } else {
+                      //Serial.println("removal of " + stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2 + " Succeed");
+                      FileRmvd++;
+                      }
+                  entry2.close();                  
+                  entry2 = entry1.openNextFile();
+                  entry2.getName(entryname2, 13);             
+                  //Serial.println(entry2.name());
+                }
+                SD.rmdir(stationName + "/" + entryname + "/" + entryname1 + "/" + entryname2 + "/TEMP/");
+                FolderRmvd++;
+              }
+              entry1.close();
+              entry1 = entry.openNextFile();
+              //Serial.println(entry1.name());
+            }
+            SD.rmdir(stationName + "/" + entryname);
+            FolderRmvd++;
+      } 
+      entry.close();
+      entry =  root.openNextFile();
+    }
+    root.close();
+    Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));
+    log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
+  // retirer les logs qui datent de plus d'un an 
+    FolderRmvd = 0;
+    FileRmvd = 0;
+    Particle.publish("status", "Cleaning old logs on SD...");
+    log("clL", 4);
+    root = SD.open("LOGS/");
+    entry = root.openNextFile();
+    while (entry) {
+      entry.getName(entryname, 13);
+      if(cleanall == 1 || String(entryname).endsWith(String(nowyear-2))){
+          if(!SD.remove("LOGS/" + String(entryname))){
+            Serial.println("failed");
+          } else {
+            FileRmvd++;
+            }
+          }
+      entry.close();
+      entry =  root.openNextFile();
+      entry.getName(entryname, 13);
+    }
+    root.close();
+    Particle.publish("status", "Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd));  
+    log("Rd " + String(FolderRmvd) + ", Rf" + String(FileRmvd), 4);
+    return 1;
 }
 
 /* 
@@ -1492,11 +1536,14 @@ void loop() {
     String VCell = String(fuel.getVCell());
     CellularSignal sig = Cellular.RSSI();
     log("SOC; " + SOC + ";Vb;" + VCell + ";RSSI;" + String(sig.getStrengthValue()) + ";Qual; " + String(sig.getQuality()) + ";", 4);  
+
+    /*//retiré car cette variable semble fournir des valeurs parfois erronées, au pire on tente 3 fois le transfert d'image
     if (sig.getQuality() < 10) { 
       offlineMode = true ; // Si la qualité du signal est sous 25, on considère que nous sommes hors ligne
       log("Poor Cell Qual, OM", 3);
       Particle.publish("Status", "Poor Cell SNR, OM");
-    }
+    }*/
+
     // Opérations à faire seulement si nous avons une connection réseau confirmée
     if(!offlineMode) {
       if(!cloudOutage) {
@@ -1654,6 +1701,8 @@ void loop() {
           log("LSuc", 4);
           attempts = 0;
         }   
+
+      bool tempSyncSuccess = 0;
       sprintf(buffer,"%s/%d/%d/TEMP/",stationName.c_str(),now.year(), now.month());
       Serial.println("looking for: " + String(buffer));
       if(SD.exists(buffer)) {
@@ -1662,6 +1711,7 @@ void loop() {
         File BuPic = root.openNextFile();
         while(BuPic && !BuPic.isDirectory()){
           tempfiles += 1;
+          attempts = 0;
           BuPic.getName(Nametocard,13) ;
           Serial.println("Name of offline pic: " + String(Nametocard));
           BuPic.close();
@@ -1669,13 +1719,23 @@ void loop() {
             attempts++;
             while(!Cellular.ready());
           }
-          sprintf(buffer2,"%s/%d/%d/",stationName.c_str(),now.year(), now.month());
-          SD.rename(buffer + String(Nametocard),buffer2 +  String(Nametocard));
+          if (attempts == 0) {
+            tempSyncSuccess = 1;
+            BuPic.open(buffer + String(Nametocard), O_WRONLY | O_APPEND);
+            sprintf(buffer2,"%s/%d/%d/",stationName.c_str(),now.year(), now.month());
+          if(!BuPic.rename(buffer2 +  String(Nametocard))) {
+             Particle.publish("status", "Error trying to move the file");
+             tempSyncSuccess = 0;
+            }
+            BuPic.close();            
+           }
           //SD.remove(buffer + String(Nametocard));
           BuPic = root.openNextFile();
         }
         root.close();
-        SD.rmdir(buffer);
+        if(tempSyncSuccess) {
+          SD.rmdir(buffer);
+        }
         log("OFL Pic dump Done,Nb of files: " + String(tempfiles), 4);
         Particle.publish("status", "OFL Pic dump Done,Nb of files: " + String(tempfiles));
         tempfiles = 0;
